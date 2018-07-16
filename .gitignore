@@ -1,0 +1,7 @@
+*.dll
+*.ilk
+*.pyd
+*.exe
+*.pdb
+*.lib
+*.exp
