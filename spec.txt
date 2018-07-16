@@ -1,0 +1,77 @@
+[MODULE NAME];
+
+@include "filename"
+
+// may be placed anywhere except in a statement
+{
+@cpp
+// literal c/c++ code (such as includes)
+
+@
+
+@py
+
+# literal python code (such as imports)
+
+@
+
+}
+
+start;
+class {[NAMESPACE1]::[NAMESPACE2]::...}[NAME]{<[TPARAM1], [TPARAM2], ...>} {extends [CLASSNAME]};
+
+// if a class is being extended, then it must be imported manually in python using literals like so:
+//  @
+//  // for class Foo extends Bar in module lib
+//  import lib.Bar
+//  @
+
+/*
+
+comment
+
+*/
+
+
+// constructor (only applies if specified as a "class")
+ctor{<[TPARAM1], [TPARAM2], ...>} ([TYPE1] {=}, [TYPE2] {=}, ...);
+
+{virtual} dtor;
+
+// if one is virtual, the class is marked as virtual
+
+// normal functions
+func {const} {static|virtual} [FUNCTION]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=},
+                                                                       [TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}, ...) -> [RET];
+
+operator [OPTYPE]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=}
+                                                {,[TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}}) -> [RET];
+
+end;
+
+start;
+
+enum {class} {[NAMESPACE1]::[NAMESPACE2]::...}[NAME];
+
+[NAME1]{=[VALUE1]};
+[NAME2]{=[VALUE2]};
+...
+
+end;
+
+start;
+namespace {[NAMESPACE1]::[NAMESPACE2]::...}[NAME];
+
+func [FUNCTION]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=},
+                                              [TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}, ...) -> [RET];
+
+end;
+
+
+start;
+
+...
+
+end;
+
+...
