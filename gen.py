@@ -2,6 +2,9 @@
 
 import sys, re, datetime, os
 
+from Section import *
+import Type
+
 __version__ = "EpyGen v1.0"
 
 CLASS_TYPE = 0
@@ -66,58 +69,6 @@ class PyLiteral(object):
 class CppLiteral(object):
     def __init__(self, literal):
         self.literal = literal
-
-class Section(object):
-    def __init__(self, name):
-        self.name = name
-        self.name_fmt = formatName(name)
-
-    def __str__(self):
-        return self.name
-
-class Namespace(Section):
-    def __init__(self, name):
-        super().__init__(name)
-        self.functions = []
-
-    def __str__(self):
-        s = super().__str__() + "\n"
-        for f in self.functions:
-            s += str(f) + "\n"
-
-        return s
-
-class Class(Namespace):
-    def __init__(self, name, tparams):
-        super().__init__(name)
-        self.tparams = tparams
-
-        # Tuple: (param_list, tparam_list, Class)
-        self.ctors = []
-        self.virtual_funcs = []
-
-        # Nothing special needs to be done with the destructor, we just need to know that we have one
-        self.dtor = False
-
-    def __str__(self):
-        s = super().__str__()
-        for c in self.ctors:
-            s += str(c) + "\n"
-        return s
-
-class Enum(Section):
-    def __init__(self, name, eclass):
-        super().__init__(name)
-
-        self.eclass = eclass
-
-        self.values = []
-
-    def __str__(self):
-        s = super().__str__() + "\n"
-        for v in self.values:
-            s += v[0] + "=" + v[1] + "\n"
-        return s
 
 class Epy(object):
     def __init__(self, filename, contents, lib_name):
@@ -289,7 +240,7 @@ class Epy(object):
 
             if c == ',' and pcount == 0:
                 print("Found parameter `" + ptype + "`")
-                params.append((ptype.strip(), defaulted))
+                params.append((Type.parseType(ptype.strip()), defaulted))
                 ptype = ""
                 defaulted = False
                 i += 1 # skip over the comma
@@ -315,7 +266,7 @@ class Epy(object):
 
         if ptype:
             print("Found parameter `" + ptype + "`")
-            params.append((ptype.strip(), defaulted))
+            params.append((Type.parseType(ptype.strip()), defaulted))
 
         print("Found " + str(len(params)) + " template parameters")
 
@@ -344,7 +295,7 @@ class Epy(object):
 
             if c == ',' and pcount == 0:
                 print("Found parameter `" + ptype + "`")
-                params.append((ptype.strip(), defaulted))
+                params.append((Type.parseType(ptype.strip()), defaulted))
                 ptype = ""
                 defaulted = False
                 i += 1 # skip over the comma
@@ -370,7 +321,7 @@ class Epy(object):
 
         if ptype:
             print("Found parameter `" + ptype + "`")
-            params.append((ptype.strip(), defaulted))
+            params.append((Type.parseType(ptype.strip()), defaulted))
 
         print("Found " + str(len(params)) + " parameters")
 
@@ -483,11 +434,11 @@ class Epy(object):
             return state
 
         # Generate Function object and append to sobj
-        state["sobj"].functions.append(Function(func, rtype, param_list,
+        state["sobj"].functions.append(Function(func, Type.parseType(rtype), param_list,
                                                 tparam_list, const, static,
                                                 virtual, state["sobj"]))
         if virtual:
-            state["sobj"].virtual_funcs.append(Function(func, rtype, param_list,
+            state["sobj"].virtual_funcs.append(Function(func, Type.parseType(rtype), param_list,
                                                         tparam_list, const,
                                                         static, virtual,
                                                         state["sobj"]))
@@ -557,9 +508,9 @@ class Epy(object):
         tparam_list = self.parseTParams(tparams)
 
         # Generate Function object and append to sobj
-        state["sobj"].functions.append(Operator(func, rtype, param_list,
-                                                tparam_list, const, static,
-                                                virtual, state["sobj"]))
+        state["sobj"].functions.append(Operator(func, Type.parseType(rtype),
+                                                param_list, tparam_list, const,
+                                                static, virtual, state["sobj"]))
 
         return state
 
@@ -619,9 +570,6 @@ class Epy(object):
             default = ""
 
         return (name, default)
-
-def formatName(name):
-    return "__pywrapped_" + ('_'.join(name.split('::')))
 
 def formatLibName(lib_name):
     return '_'.join(lib_name.split('.')).upper() # libfile.so.1 -> LIBFILE_SO_1
@@ -713,21 +661,74 @@ def generatePython(epy):
 
     return python
 
+def createCPPNullCheck(ident, var, fname):
+    return ("    " * ident + "if({0} == nullptr) \n" +\
+            "    " * ident + "    throw NullPointerException(\"Null pointer given for parameter {0} in function {1}\");\n").format(var, fname)
+
 def createCPPFunction(full_name, name, function, epy, is_class = False):
     func_string = "    "
     cres_type = CPPTypeToCType(function.rtype)
     # Generate header
 
+    print(name, "->", '`' + cres_type.raw + '`')
+    has_ret_val = (cres_type.raw != "void")
+
     if is_windows:
         func_string += "__declspec(dllexport) "
 
-    func_string += cres_type + " " + full_name + "("
+    if cres_type.is_array:
+        func_string += "void "
+    else:
+        func_string += cres_type.c_type + ' '
+    func_string += full_name + "("
 
     # Generate parameter listing
+
+    if is_class:
+        func_string += "void* self,"
+
+    pcount = 0
+    for p in function.param_list:
+        func_string += p[0].c_type + ' type' + str(pcount) + ','
+        pcount += 1
+
+    if cres_type.is_array:
+        func_string += cres_type.toCArrayOutputParams().format("result")
+
+    if func_string.endswith(','):
+        func_string = func_string[:-1] # Remove the trailing ,
 
     func_string += ") {\n"
 
     # Generate contents
+    if is_class:
+        func_string += createCPPNullCheck(2, "self", full_name)
+
+    pcount = 0
+    for p in function.param_list:
+        # if not a default, or if it isn't a pointer
+        print(p[0].c_type, " is_ptr -- ", p[0].is_ptr)
+        if p[0].is_ptr:
+            if not p[1]:
+                func_string += createCPPNullCheck(2, "type" + str(pcount), full_name)
+
+    func_string += "    " * 2
+
+    if has_ret_val:
+        func_string += "return "
+
+    if is_class:
+        func_string += "(({0}*)self)->".format(function.owner.name)
+    func_string += "{0}(".format(name)
+
+    pcount = 0
+    for p in function.param_list:
+        # Generate casts to cpp types
+        func_string += "{0}({1})".format(p[0].raw, 'type' + str(pcount)) + ","
+
+    if func_string.endswith(','):
+        func_string = func_string[:-1] # Remove the trailing ,
+    func_string += ");\n"
 
     func_string += "    }\n"
 
