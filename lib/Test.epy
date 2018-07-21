@@ -4,6 +4,7 @@ Hello;
 
 // Don't ignore me, I'm in a literal section
 #include <string>
+#include "Test.h"
 
 /* Or me */
 
