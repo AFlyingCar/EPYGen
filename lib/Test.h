@@ -15,7 +15,7 @@ class API Hello {
 
         void mparam(int, float);
 
-        void fparam(std::function<int(float)>);
+        void fparam(std::function<int(float, double)>);
 
     private:
         std::string m_message;

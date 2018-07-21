@@ -16,7 +16,7 @@ const std::string& Hello::say() const {
 void Hello::mparam(int, float) {
     
 }
-void Hello::fparam(std::function<int(float)>) {
-    
+void Hello::fparam(std::function<int(float, double)> f) {
+    f(5, 4);
 }
 
