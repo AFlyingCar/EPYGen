@@ -1,4 +1,4 @@
-import enum, re
+import re
 
 BUILTINS = ["bool", "int", "char", "float", "double"]
 
@@ -95,6 +95,25 @@ class Type(object):
 
         return oparams
 
+    def createCTransformation(self, var):
+        if self.full_name == "std_string":
+            return "({0}).c_str()".format(var)
+        elif self.is_function:
+            return "(({0}){1})".format(self.asCFunction(), var)
+
+        return var
+
+    def asCFunction(self):
+        return ("{0}(*)({1})").format(self.type_name, ','.join([p.type_name for p in self.fparams]))
+
+    def createVoidStarTransformation(self, var):
+        if self.full_name == "std_string":
+            return "std::string((char*){0})".format(var)
+        elif self.is_function:
+            return "(({0})(({1}){2}))".format(self.raw, self.asCFunction(), var)
+        else:
+            return var
+
     def buildCType(self):
         # NOTE: If not a builtin, we should just return a void*, and let python handle
         #  the conversion
@@ -116,9 +135,9 @@ class Type(object):
             self.c_type = "const " + self.c_type
 
         if self.is_ptr:
+            self.c_type += "*"
             if self.is_cptr:
                 self.c_type += " const "
-            self.c_type += "*"
         else:
             # Make sure we are still a string
             if self.full_name == "std_string": self.c_type += "*"
