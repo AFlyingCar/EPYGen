@@ -28,6 +28,7 @@ CPP_HEADER = """
  *  Do not modify this file unless you know what you are doing.
  *
  */
+#include <Python.h>
 """ # TODO: Include copyright info section
 
 PY_DEL_FUNC = """
@@ -38,7 +39,7 @@ PY_DEL_FUNC = """
 
 CPP_DEL_FUNC = """
     {0} void {1}_Destroy(void* ptr) {{
-        delete ptr;
+        delete ({2}*)ptr;
     }}
 """
 
@@ -662,8 +663,10 @@ def generatePython(epy):
     return python
 
 def createCPPNullCheck(ident, var, fname):
-    return ("    " * ident + "if({0} == nullptr) \n" +\
-            "    " * ident + "    throw NullPointerException(\"Null pointer given for parameter {0} in function {1}\");\n").format(var, fname)
+    return ("    " * ident + "if({0} == nullptr) {{\n" +\
+            "    " * ident + "    PyErr_SetString(PyExc_ValueError, \"Null pointer given for parameter {0} in function {1}\");\n" +\
+            "    " * ident + "    return nullptr;\n" +\
+            "    " * ident + "}}\n").format(var, fname)
 
 def createCPPFunction(full_name, name, function, epy, is_class = False):
     func_string = "    "
@@ -717,20 +720,25 @@ def createCPPFunction(full_name, name, function, epy, is_class = False):
     if has_ret_val:
         func_string += "return "
 
+    call = ""
+
     if is_class:
-        func_string += "(({0}*)self)->".format(function.owner.name)
-    func_string += "{0}(".format(name)
+        call += "(({0}*)self)->".format(function.owner.name)
+    call += "{0}(".format(name)
 
     pcount = 0
     for p in function.param_list:
         # Generate casts to cpp types
-        func_string += "{0}({1})".format(p[0].raw, 'type' + str(pcount)) + ","
+        call += "{0}({1})".format(p[0].raw, p[0].createCTransformation('type' + str(pcount))) + ","
 
-    if func_string.endswith(','):
-        func_string = func_string[:-1] # Remove the trailing ,
-    func_string += ");\n"
+    if call.endswith(','):
+        call = call[:-1] # Remove the trailing ,
+    call += ")"
 
-    func_string += "    }\n"
+    if has_ret_val:
+        call = cres_type.createCTransformation(call)
+
+    func_string += call + ";\n    }\n"
 
     return func_string
 
@@ -769,7 +777,7 @@ def createCPPClass(klass, epy):
         class_string += createCPPCtor(ctor, klass)
 
     if klass.dtor:
-        class_string += CPP_DEL_FUNC.format("__declspec(dllexport)" if is_windows else "", klass.name_fmt)
+        class_string += CPP_DEL_FUNC.format("__declspec(dllexport)" if is_windows else "", klass.name_fmt, klass.name)
 
     functions_found = {f.name: 0 for f in klass.functions}
     for f in klass.functions:
