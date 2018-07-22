@@ -26,7 +26,7 @@ class Class(Namespace):
         super().__init__(name)
         self.tparams = tparams
 
-        # Tuple: (param_list, tparam_list, Class)
+        # Tuple: (param_list, tparam_list, throws, Class)
         self.ctors = []
         self.virtual_funcs = []
 
