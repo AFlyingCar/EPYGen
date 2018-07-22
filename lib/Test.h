@@ -17,6 +17,8 @@ class API Hello {
 
         void fparam(std::function<int(float, double)>);
 
+        static void sayHello();
+
     private:
         std::string m_message;
 };

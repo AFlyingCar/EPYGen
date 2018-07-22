@@ -6,6 +6,8 @@
 
 #include "Test.h"
 
+#include <iostream>
+
 Hello::Hello(const std::string& m): m_message(m) { }
 Hello::~Hello(){ }
 
@@ -20,3 +22,7 @@ void Hello::fparam(std::function<int(float, double)> f) {
     f(5, 4);
 }
 
+
+void Hello::sayHello() {
+    std::cout << "Hello there!" << std::endl;
+}
