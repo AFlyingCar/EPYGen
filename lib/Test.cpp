@@ -26,3 +26,8 @@ void Hello::fparam(std::function<int(float, double)> f) {
 void Hello::sayHello() {
     std::cout << "Hello there!" << std::endl;
 }
+
+void Hello::throwTest() {
+    throw 25;
+}
+

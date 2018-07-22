@@ -19,6 +19,8 @@ class API Hello {
 
         static void sayHello();
 
+        static void throwTest();
+
     private:
         std::string m_message;
 };

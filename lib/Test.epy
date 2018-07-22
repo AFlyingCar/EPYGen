@@ -37,6 +37,7 @@ func const say() throws std::exception -> const std::string&;
 func mparam(int, float) -> void;
 
 func static sayHello() -> void;
+func static throwTest() -> void;
 
 func fparam<int>(std::function<int(float, double)>) -> void;
 // func fparam<float>(std::function<int(float, double)>) -> void;
