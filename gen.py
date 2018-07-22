@@ -828,7 +828,7 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
 
     # Generate parameter listing
 
-    if is_class:
+    if is_class and not function.static:
         func_string += "void* self,"
 
     pcount = 0
@@ -845,7 +845,7 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
     func_string += ") {\n"
 
     # Generate contents
-    if is_class:
+    if is_class and not function.static:
         func_string += createCPPNullCheck(2, "self", name)
 
     func_string += "    " * 2 + "try {\n"
@@ -857,7 +857,10 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
     call = ""
 
     if is_class:
-        call += "(({0}*)self)->".format(function.owner.name)
+        if function.static:
+            call += "{0}::".format(function.owner.name)
+        else:
+            call += "(({0}*)self)->".format(function.owner.name)
     call += "{0}(".format(name)
 
     pcount = 0
