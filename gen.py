@@ -874,6 +874,8 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
     # Generate parameter listing
 
     if is_class and not function.static:
+        if function.const:
+            func_string += "const "
         func_string += "void* self,"
 
     pcount = 0
@@ -905,7 +907,7 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
         if function.static:
             call += "{0}::".format(function.owner.name)
         else:
-            call += "(({0}*)self)->".format(function.owner.name)
+            call += "(({0}*)self)->".format(("const " if function.const else "") + function.owner.name)
     call += "{0}(".format(name)
 
     pcount = 0
