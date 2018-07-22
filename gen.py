@@ -11,6 +11,31 @@ CLASS_TYPE = 0
 NSPACE_TYPE = 1
 ENUM_TYPE = 2
 
+CPP_PY_EXCEPTION_MAPPING = {
+    "std::exception": "PyExc_Exception",
+
+    "std::bad_alloc": "PyExc_MemoryError",
+    "std::bad_cast": "PyExc_TypeError",
+    # "std::bad_exception": "",
+    "std::bad_function_call": "PyExc_EnvironmentError", # TODO: Maybe?
+    "std::bad_typeid": "PyExc_ValueError",
+    "std::bad_weak_ptr": "PyExc_MemoryError",
+
+    "std::logic_error": "PyExc_RuntimeError", # TODO: We should figure out a better error to use
+    "std::domain_error": "PyExc_ValueError", # There is no specific domain error
+    # "std::future_error": "",
+    "std::invalid_argument": "PyExc_ValueError",
+    "std::length_error": "PyExc_ValueError",
+    "std::out_of_range": "PyExc_IndexError",
+
+    "std::runtime_error": "PyExc_RuntimeError",
+    "std::overflow_error": "PyExc_OverflowError",
+    "std::range_error": "PyExc_ValueError", # There is no specific range error
+    "std::regex_error": "PyExc_ValueError",
+    "std::system_error": "PyExc_SystemError",
+    "std::underflow_error": "PyExc_UnderflowError"
+}
+
 PYTHON_HEADER = """
 # -*- coding: utf-8 -*-
 
@@ -29,6 +54,8 @@ CPP_HEADER = """
  *
  */
 #include <Python.h>
+#include <stdexcept>
+#include <exception>
 """ # TODO: Include copyright info section
 
 PY_DEL_FUNC = """
@@ -43,13 +70,21 @@ CPP_DEL_FUNC = """
     }}
 """
 
+CPP_PY_OBJ_WRAPPER_CREATOR = """
+{0}if({1} == nullptr) {{
+{0}    {1} = PyErr_NewException("{2}.{3}", nullptr, nullptr);
+{0}    Py_INCREF({1});
+{0}    PyModule_AddObject(PyImport_AddModule("__main__"), "{2}", {1});
+{0}}}
+"""
+
 today = datetime.date.today().isoformat()
 lib_obj_name = ""
 
 is_windows = os.name == 'nt'
 
 class Function(object):
-    def __init__(self, func, rtype, param_list, tparam_list, const, static, virtual, owner):
+    def __init__(self, func, rtype, param_list, tparam_list, const, static, virtual, throws, owner):
         self.name = func
         self.rtype = rtype
         self.param_list = param_list
@@ -57,11 +92,12 @@ class Function(object):
         self.const = const
         self.static = static
         self.virtual = virtual
+        self.throws = throws
         self.owner = owner
 
 class Operator(Function):
-    def __init__(self, func, rtype, param_list, tparam_list, const, static, virtual, owner):
-        super().__init__(func, rtype, param_list, tparam_list, const, static, virtual, owner)
+    def __init__(self, func, rtype, param_list, tparam_list, const, static, virtual, throws, owner):
+        super().__init__(func, rtype, param_list, tparam_list, const, static, virtual, throws, owner)
 
 class PyLiteral(object):
     def __init__(self, literal):
@@ -277,6 +313,10 @@ class Epy(object):
 
     def parseParamList(self, param_str):
         param_str = param_str.strip() # Just to be safe
+
+        throws_str = param_str[param_str.rfind(')') + 1:].strip()
+        param_str = param_str[:param_str.rfind(')') + 1].strip()
+
         if not (param_str.startswith('(') and param_str.endswith(')')):
             print("Error: Parameter lists must be surrounded with ()")
             return None
@@ -315,7 +355,6 @@ class Epy(object):
                 pcount -= 1
             elif c == ')':
                 pcount -= 1
-
             ptype += c
 
             i += 1
@@ -328,7 +367,15 @@ class Epy(object):
 
         print("done")
 
-        return params
+        return params, throws_str
+
+    def parseThrowsStr(self, throws_str):
+        throws = []
+        throws_str = throws_str.strip()
+        if throws_str.startswith("throws "):
+            throws = [t.strip() for t in throws_str[7:].strip().split(",")]
+
+        return throws
 
     def parseCtorStatement(self, statement, state):
         if not type(state["sobj"]) is Class:
@@ -345,12 +392,16 @@ class Epy(object):
         else:
             tparam_list = []
 
-        param_list = self.parseParamList(param_str)
+        param_list, throws_str = self.parseParamList(param_str)
+
+        print(throws_str)
+
+        throws = self.parseThrowsStr(throws_str)
 
         if param_list is None:
             state["error"] = True
         else:
-            state["sobj"].ctors.append((param_list, tparam_list, state["sobj"]))
+            state["sobj"].ctors.append((param_list, tparam_list, throws, state["sobj"]))
 
         return state
 
@@ -425,8 +476,10 @@ class Epy(object):
               ("const " if const else ""), ("static " if static else ""),
               ("virtual" if virtual else ""))
 
-        param_list = self.parseParamList(param_str)
+        param_list, throws_str = self.parseParamList(param_str)
         tparam_list = self.parseTParams(tparams)
+
+        throws = self.parseThrowsStr(throws_str)
 
         # Verify that there are no spaces in the function name
         if re.match('^[\w]+$', func) is None:
@@ -437,11 +490,11 @@ class Epy(object):
         # Generate Function object and append to sobj
         state["sobj"].functions.append(Function(func, Type.parseType(rtype), param_list,
                                                 tparam_list, const, static,
-                                                virtual, state["sobj"]))
+                                                virtual, throws, state["sobj"]))
         if virtual:
             state["sobj"].virtual_funcs.append(Function(func, Type.parseType(rtype), param_list,
                                                         tparam_list, const,
-                                                        static, virtual,
+                                                        static, virtual, throws,
                                                         state["sobj"]))
 
         return state
@@ -505,13 +558,16 @@ class Epy(object):
               ("const " if const else ""), ("static " if static else ""),
               ("virtual" if virtual else ""))
 
-        param_list = self.parseParamList(param_str)
+        param_list, throws_str = self.parseParamList(param_str)
         tparam_list = self.parseTParams(tparams)
+
+        throws = self.parseThrowsStr(throws_str)
 
         # Generate Function object and append to sobj
         state["sobj"].functions.append(Operator(func, Type.parseType(rtype),
                                                 param_list, tparam_list, const,
-                                                static, virtual, state["sobj"]))
+                                                static, virtual, throws,
+                                                state["sobj"]))
 
         return state
 
@@ -668,8 +724,46 @@ def createCPPNullCheck(ident, var, fname):
             "    " * ident + "    return nullptr;\n" +\
             "    " * ident + "}}\n").format(var, fname)
 
-def createCPPCtor(klass_name, params, epy, ctor_num = 0):
+def createCPPPyExceptionObjectName(t):
+    if t in CPP_PY_EXCEPTION_MAPPING:
+        return CPP_PY_EXCEPTION_MAPPING[t]
+    else:
+        return "__pywrapped_EXCEPTION_" + '_'.join(t.split('::'))
+
+def createCPPPyExceptionWrapper(throw, fname):
+    exc_wrapper = "    " * 2
+    exc_obj_name = createCPPPyExceptionObjectName(throw)
+
+    nspaces = throw.split('::')[:-1]
+    exc_name = throw.split('::')[-1]
+
+    # Just to be safe
+    if not nspaces:
+        nspaces = ["_"] # TODO: This should be something else
+
+    # Convert things like std::except into std.except
+    py_nspaces = '.'.join(nspaces)
+
+    exc_wrapper += "}} catch(const {0}& e) {{\n".format(throw)
+    if throw not in CPP_PY_EXCEPTION_MAPPING:
+        exc_wrapper += CPP_PY_OBJ_WRAPPER_CREATOR.format("    " * 3, exc_obj_name, py_nspaces, exc_name)
+
+    exc_wrapper += "    " * 3 + "PyErr_SetString({0}, e.what());\n".format(exc_obj_name)
+    exc_wrapper += "    " * 3 + "return 0;\n"
+
+    return exc_wrapper
+
+def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_num = 0):
     ctor_str = "    "
+
+    func_name = "{0}'s Constructor".format(klass_name)
+
+    # Generate exception globals if they have not yet been referenced
+    for t in throws:
+        if t not in referenced_throws and t not in CPP_PY_EXCEPTION_MAPPING:
+            ctor_str += "static PyObject* " + createCPPPyExceptionObjectName(t) + " = nulllptr;\n    "
+
+            referenced_throws.append(t)
 
     if is_windows:
         ctor_str += "__declspec(dllexport) "
@@ -686,31 +780,39 @@ def createCPPCtor(klass_name, params, epy, ctor_num = 0):
 
     ctor_str += ") {\n"
 
-    pcount = 0
-    for p in params:
-        # if not a default, or if it isn't a pointer
-        print(p[0].c_type, " is_ptr -- ", p[0].is_ptr)
-        if p[0].is_ptr:
-            if not p[1]:
-                ctor_str += createCPPNullCheck(2, "param" + str(pcount), "{0} constructor{1}".format(klass_name, " " + str(ctor_num) if ctor_num > 0 else ""))
-
-    ctor_str += "    " * 2 + "return new {0}(".format(klass_name)
+    ctor_str += "    " * 2 + "try {\n"
+    ctor_str += "    " * 3 + "return new {0}(".format(klass_name)
 
     pcount = 0
     for p in params:
         # Generate casts to cpp types
         ctor_str += "{0}({1})".format(p[0].raw, 'param' + str(pcount)) + ","
 
-
     if ctor_str.endswith(','):
         ctor_str = ctor_str[:-1] # Remove the trailing ,
+    ctor_str += ");\n"
 
-    return ctor_str + ");\n    }\n"
+    for t in throws:
+        ctor_str += createCPPPyExceptionWrapper(t, func_name)
 
-def createCPPFunction(full_name, name, function, epy, is_class = False):
+    ctor_str += "    " * 2 + "} catch (...) {\n"
+    ctor_str += "    " * 3 + "PyErr_SetString(PyExc_RuntimeError, \"An unspecified exception has occurred in {0}\");\n".format(func_name)
+    ctor_str += "    " * 3 + "return nullptr;\n"
+    ctor_str += "    " * 2 + "}\n"
+
+    return ctor_str + "    }\n"
+
+def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is_class = False):
     func_string = "    "
     cres_type = CPPTypeToCType(function.rtype)
     # Generate header
+
+    # Generate exception globals if they have not yet been referenced
+    for t in function.throws:
+        if t not in referenced_throws and t not in CPP_PY_EXCEPTION_MAPPING:
+            func_string += "static PyObject* " + createCPPPyExceptionObjectName(t) + " = nulllptr;\n    "
+
+            referenced_throws.append(t)
 
     print(name, "->", '`' + cres_type.raw + '`')
     has_ret_val = (cres_type.raw != "void")
@@ -744,17 +846,10 @@ def createCPPFunction(full_name, name, function, epy, is_class = False):
 
     # Generate contents
     if is_class:
-        func_string += createCPPNullCheck(2, "self", full_name)
+        func_string += createCPPNullCheck(2, "self", name)
 
-    pcount = 0
-    for p in function.param_list:
-        # if not a default, or if it isn't a pointer
-        print(p[0].c_type, " is_ptr -- ", p[0].is_ptr)
-        if p[0].is_ptr:
-            if not p[1]:
-                func_string += createCPPNullCheck(2, "param" + str(pcount), full_name)
-
-    func_string += "    " * 2
+    func_string += "    " * 2 + "try {\n"
+    func_string += "    " * 3
 
     if has_ret_val:
         func_string += "return "
@@ -777,7 +872,17 @@ def createCPPFunction(full_name, name, function, epy, is_class = False):
     if has_ret_val:
         call = cres_type.createCTransformation(call)
 
-    func_string += call + ";\n    }\n"
+    func_string += call + ";\n"
+
+    for t in function.throws:
+        func_string += createCPPPyExceptionWrapper(t, name)
+
+    func_string += "    " * 2 + "} catch (...) {\n"
+    func_string += "    " * 3 + "PyErr_SetString(PyExc_RuntimeError, \"An unspecified exception has occurred in {0}\");\n".format(name)
+    func_string += "    " * 3 + "return nullptr;\n"
+    func_string += "    " * 2 + "}\n"
+
+    func_string += "    }\n"
 
     return func_string
 
@@ -797,7 +902,7 @@ def createCPPClassWrapper(orig_name, wrap_name, klass):
 
     return class_string
 
-def createCPPClass(klass, epy):
+def createCPPClass(klass, epy, reffed_throws):
     class_string = ""
 
     class_name = klass.name
@@ -811,7 +916,7 @@ def createCPPClass(klass, epy):
 
     ccount = 0
     for ctor in klass.ctors:
-        class_string += createCPPCtor(klass.name, ctor[0], epy, ccount)
+        class_string += createCPPCtor(klass.name, ctor[0], ctor[2], epy, reffed_throws, ccount)
         ccount += 1
 
     if klass.dtor:
@@ -820,7 +925,7 @@ def createCPPClass(klass, epy):
     functions_found = {f.name: 0 for f in klass.functions}
     for f in klass.functions:
         full_name = klass.name_fmt + '_' + f.name + str(functions_found[f.name])
-        class_string += createCPPFunction(full_name, f.name, f, epy, True)
+        class_string += createCPPFunction(full_name, f.name, f, epy, reffed_throws, True)
 
     class_string += "}\n"
 
@@ -829,11 +934,11 @@ def createCPPClass(klass, epy):
 def generateCPP(epy):
     cplusplus = CPP_HEADER.format(__version__, today)
 
-    extern_opened = False
+    reffed_throws = []
 
     for section in epy.sections:
         if type(section) is Class:
-            cplusplus += createCPPClass(section, epy)
+            cplusplus += createCPPClass(section, epy, reffed_throws)
         elif type(section) is CppLiteral:
             cplusplus += section.literal
 
