@@ -668,6 +668,45 @@ def createCPPNullCheck(ident, var, fname):
             "    " * ident + "    return nullptr;\n" +\
             "    " * ident + "}}\n").format(var, fname)
 
+def createCPPCtor(klass_name, params, epy, ctor_num = 0):
+    ctor_str = "    "
+
+    if is_windows:
+        ctor_str += "__declspec(dllexport) "
+
+    ctor_str += "void* __pywrapped_{0}_Create{1}(".format(klass_name, str(ctor_num) if ctor_num > 0 else "")
+
+    pcount = 0
+    for p in params:
+        ctor_str += p[0].c_type + ' param' + str(pcount) + ','
+        pcount += 1
+
+    if ctor_str.endswith(','):
+        ctor_str = ctor_str[:-1]
+
+    ctor_str += ") {\n"
+
+    pcount = 0
+    for p in params:
+        # if not a default, or if it isn't a pointer
+        print(p[0].c_type, " is_ptr -- ", p[0].is_ptr)
+        if p[0].is_ptr:
+            if not p[1]:
+                ctor_str += createCPPNullCheck(2, "param" + str(pcount), "{0} constructor{1}".format(klass_name, " " + str(ctor_num) if ctor_num > 0 else ""))
+
+    ctor_str += "    " * 2 + "return new {0}(".format(klass_name)
+
+    pcount = 0
+    for p in params:
+        # Generate casts to cpp types
+        ctor_str += "{0}({1})".format(p[0].raw, 'param' + str(pcount)) + ","
+
+
+    if ctor_str.endswith(','):
+        ctor_str = ctor_str[:-1] # Remove the trailing ,
+
+    return ctor_str + ");\n    }\n"
+
 def createCPPFunction(full_name, name, function, epy, is_class = False):
     func_string = "    "
     cres_type = CPPTypeToCType(function.rtype)
@@ -692,7 +731,7 @@ def createCPPFunction(full_name, name, function, epy, is_class = False):
 
     pcount = 0
     for p in function.param_list:
-        func_string += p[0].c_type + ' type' + str(pcount) + ','
+        func_string += p[0].c_type + ' param' + str(pcount) + ','
         pcount += 1
 
     if cres_type.is_array:
@@ -713,7 +752,7 @@ def createCPPFunction(full_name, name, function, epy, is_class = False):
         print(p[0].c_type, " is_ptr -- ", p[0].is_ptr)
         if p[0].is_ptr:
             if not p[1]:
-                func_string += createCPPNullCheck(2, "type" + str(pcount), full_name)
+                func_string += createCPPNullCheck(2, "param" + str(pcount), full_name)
 
     func_string += "    " * 2
 
@@ -729,7 +768,7 @@ def createCPPFunction(full_name, name, function, epy, is_class = False):
     pcount = 0
     for p in function.param_list:
         # Generate casts to cpp types
-        call += "{0}({1})".format(p[0].raw, p[0].createCTransformation('type' + str(pcount))) + ","
+        call += "{0}({1})".format(p[0].raw, p[0].createCTransformation('param' + str(pcount))) + ","
 
     if call.endswith(','):
         call = call[:-1] # Remove the trailing ,
@@ -758,9 +797,6 @@ def createCPPClassWrapper(orig_name, wrap_name, klass):
 
     return class_string
 
-def createCPPCtor(ctor, klass):
-    return ""
-
 def createCPPClass(klass, epy):
     class_string = ""
 
@@ -773,8 +809,10 @@ def createCPPClass(klass, epy):
 
     class_string += "extern \"C\" {\n"
 
+    ccount = 0
     for ctor in klass.ctors:
-        class_string += createCPPCtor(ctor, klass)
+        class_string += createCPPCtor(klass.name, ctor[0], epy, ccount)
+        ccount += 1
 
     if klass.dtor:
         class_string += CPP_DEL_FUNC.format("__declspec(dllexport)" if is_windows else "", klass.name_fmt, klass.name)
