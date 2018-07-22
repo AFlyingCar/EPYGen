@@ -34,7 +34,7 @@ comment
 
 
 // constructor (only applies if specified as a "class")
-ctor{<[TPARAM1], [TPARAM2], ...>} ([TYPE1] {=}, [TYPE2] {=}, ...);
+ctor{<[TPARAM1], [TPARAM2], ...>} ([TYPE1] {=}, [TYPE2] {=}, ...) {throws [EXCEPTION1], [EXCEPTION2]};
 
 {virtual} dtor;
 
@@ -42,10 +42,12 @@ ctor{<[TPARAM1], [TPARAM2], ...>} ([TYPE1] {=}, [TYPE2] {=}, ...);
 
 // normal functions
 func {const} {static|virtual} [FUNCTION]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=},
-                                                                       [TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}, ...) -> [RET];
+                                                                       [TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}, ...)
+                                                                       {throws [EXCEPTION1], [EXCEPTION2]} -> [RET];
 
 operator [OPTYPE]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=}
-                                                {,[TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}}) -> [RET];
+                                                {,[TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}})
+                                                {throws [EXCEPTION1], [EXCEPTION2]} -> [RET];
 
 end;
 
@@ -63,7 +65,8 @@ start;
 namespace {[NAMESPACE1]::[NAMESPACE2]::...}[NAME];
 
 func [FUNCTION]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=},
-                                              [TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}, ...) -> [RET];
+                                              [TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}, ...)
+                                              {throws [EXCEPTION1], [EXCEPTION2]} -> [RET];
 
 end;
 
