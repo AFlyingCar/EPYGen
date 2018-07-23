@@ -67,10 +67,11 @@ PY_DEL_FUNC = """
 """
 
 PY_FUNC_LOADER = """{0}try:
-{0}    {1}{2} = getattr(__LIBRARY_{3}__, "{2}")
+{0}    {1} = getattr(__LIBRARY_{2}__, "{1}")
+{0}    {1}.restype
 {0}except AttributeError as e:
 {0}    print(str(e), file=sys.stderr)
-{0}    {1}{2} = None
+{0}    {1} = None
 """
 
 CPP_DEL_FUNC = """    {0} void {1}_Destroy(void* ptr) {{
@@ -701,8 +702,8 @@ def createPyFunction(cname, name, function, epy, is_class = False, starting_iden
 
     return func_str
 
-def createPyFuncLoader(fname, lib_name, is_class, ident = ""):
-    return PY_FUNC_LOADER.format(ident, "self." if is_class else "", fname, lib_name)
+def createPyFuncLoader(fname, lib_name, ident = ""):
+    return PY_FUNC_LOADER.format(ident, fname, lib_name)
 
 def createPyCtor(ctor_list, klass, epy):
     params = ["self"]
@@ -743,10 +744,10 @@ def createPyClass(klass, epy):
     ctor_count = 0
     for c in klass.ctors:
         ctor_name = "_pywrapped_{0}_Create{1}".format(klass.name, str(ctor_count) if ctor_count > 0 else "")
-        class_string += createPyFuncLoader(ctor_name, epy.lib_name_fmt, False)
+        class_string += createPyFuncLoader(ctor_name, epy.lib_name_fmt)
         ctor_count += 1
 
-    class_string += createPyFuncLoader("{0}_Destroy".format(klass.name_fmt), epy.lib_name_fmt, False)
+    class_string += createPyFuncLoader("{0}_Destroy".format(klass.name_fmt), epy.lib_name_fmt)
 
     class_string += "class {0}(object):\n".format(klass.name)
 
@@ -775,7 +776,7 @@ def generatePython(epy):
             functions_found = {f.name: 0 for f in section.functions}
             for f in section.functions:
                 full_name = section.name_fmt + '_' + f.name + str(functions_found[f.name])
-                python += createPyFuncLoader(full_name, epy.lib_name_fmt, False)
+                python += createPyFuncLoader(full_name, epy.lib_name_fmt)
 
         if type(section) is Class:
             python += createPyClass(section, epy)
