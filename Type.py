@@ -103,6 +103,14 @@ class Type(object):
 
         return var
 
+    def createPyTransformation(self, var):
+        if self.py_type == "bytes":
+            return "{0}.encode() if type({0}) is str else bytes({0})".format(var)
+        elif self.is_function:
+            return "None"
+        else:
+            return "{0}({1})".format(self.py_type, var)
+
     def asCFunction(self):
         return ("{0}(*)({1})").format(self.type_name, ','.join([p.type_name for p in self.fparams]))
 
@@ -144,7 +152,7 @@ class Type(object):
 
     def buildPyType(self):
         if self.namespaces == ["std"] and self.type_name == "string":
-            self.py_type = "str"
+            self.py_type = "bytes"
         elif self.namespaces == ["std"] and self.type_name == "vector":
             self.py_type = "list"
         elif self.namespaces == ["std"] and self.type_name == "tuple":
@@ -159,7 +167,7 @@ class Type(object):
             self.py_type = "object"
 
     def buildPyCType(self):
-        if self.py_type == "str":
+        if self.py_type == "str" or self.py_type == "bytes":
             self.py_c_type = "ctypes.c_char_p"
         elif self.py_type == "list":
             self.py_c_type = "{0} * {1}" # ctype * array_count
