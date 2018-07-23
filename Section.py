@@ -1,5 +1,5 @@
 def formatName(name):
-    return "__pywrapped_" + ('_'.join(name.split('::')))
+    return "_pywrapped_" + ('_'.join(name.split('::')))
 
 class Section(object):
     def __init__(self, name):
