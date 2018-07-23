@@ -9,9 +9,9 @@ CPP_PY_TYPE_MAP = {
 }
 
 CPY_TYPE_MAP = {
-        "int": "c_int",
-        "float": "c_float",
-        "double": "c_double"
+        "int": "ctypes.c_int",
+        "float": "ctypes.c_float",
+        "double": "ctypes.c_double"
 }
 
 STRING   = 0
@@ -160,19 +160,20 @@ class Type(object):
 
     def buildPyCType(self):
         if self.py_type == "str":
-            self.py_c_type = "c_char_p"
+            self.py_c_type = "ctypes.c_char_p"
         elif self.py_type == "list":
             self.py_c_type = "{0} * {1}" # ctype * array_count
         elif self.py_type == "tuple":
             self.py_c_type = "{0} * {1}"
         elif self.py_type == "dict":
             self.py_c_type = "{0} * {1}"
-        elif self.is_function:
-            self.py_c_type = "ctypes.CFUNCTYPE"
         elif self.full_name in BUILTINS:
             self.py_c_type = CPY_TYPE_MAP[self.full_name]
         elif self.py_type == "object":
-            self.py_c_type = "c_void_p"
+            self.py_c_type = "ctypes.c_void_p"
+
+        if self.is_function:
+            self.py_c_type = "ctypes.CFUNCTYPE({0}, {1})".format(self.py_c_type, ', '.join([i.py_c_type for i in self.fparams]))
 
     def generateCPPToCCast(self):
         return ""
