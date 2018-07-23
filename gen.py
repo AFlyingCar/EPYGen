@@ -67,8 +67,8 @@ PY_DEL_FUNC = """
 """
 
 PY_FUNC_LOADER = """{0}try:
-{0}    {1} = getattr(__LIBRARY_{2}__, "{1}")
-{0}    {1}.restype
+{0}    {1} = getattr(__LIBRARY_{2}__, "{1}"){3}
+{0}    {1}.argtypes = [{4}]
 {0}except AttributeError as e:
 {0}    print(str(e), file=sys.stderr)
 {0}    {1} = None
@@ -690,9 +690,11 @@ def createPyFunction(cname, name, function, epy, is_class = False, starting_iden
         params = params[1:] # Remove cls/self as we no longer need it and don't want
                             #  to pass it to the function
         if not function.static:
-            params = ["self.cobj"] + params
+            params = ["ctypes.c_void_p(self.cobj)"] + params
 
-    # TODO: Add casts to this
+    for i in range(len(params) - 1):
+        params[i + 1] = "{0}({1})".format(function.param_list[i][0].py_c_type, 'param' + str(i))
+
     param_str = ", ".join(params)
 
     func_str += param_str + ')\n'
@@ -702,8 +704,10 @@ def createPyFunction(cname, name, function, epy, is_class = False, starting_iden
 
     return func_str
 
-def createPyFuncLoader(fname, lib_name, ident = ""):
-    return PY_FUNC_LOADER.format(ident, fname, lib_name)
+def createPyFuncLoader(fname, rtype, params, lib_name, ident = ""):
+    return PY_FUNC_LOADER.format(ident, fname, lib_name,
+                                 "\n{2}    {0}.restype = {1}".format(fname, rtype, ident) if rtype else "",
+                                 ','.join([p[0] if type(p[0]) == str else p[0].py_c_type for p in params]))
 
 def createPyCtor(ctor_list, klass, epy):
     params = ["self"]
@@ -729,8 +733,11 @@ def createPyCtor(ctor_list, klass, epy):
     ctor += ident + "self.cobj = {0}(".format(ctor_name)
 
     # Skip the self parameter
+    i = 0
     for p in params[1:]:
-        ctor += p.split(' ')[0] + ', '
+        ctor += "{0}({1}), ".format(ctor_list[0][0][i][0].py_c_type, p.split(' ')[0])
+        # ctor += p.split(' ')[0] + ', '
+        i += 1
     ctor = ctor.rstrip()
     if ctor.endswith(','):
         ctor = ctor[:-1]
@@ -744,10 +751,10 @@ def createPyClass(klass, epy):
     ctor_count = 0
     for c in klass.ctors:
         ctor_name = "_pywrapped_{0}_Create{1}".format(klass.name, str(ctor_count) if ctor_count > 0 else "")
-        class_string += createPyFuncLoader(ctor_name, epy.lib_name_fmt)
+        class_string += createPyFuncLoader(ctor_name, "ctypes.c_void_p", c[0], epy.lib_name_fmt)
         ctor_count += 1
 
-    class_string += createPyFuncLoader("{0}_Destroy".format(klass.name_fmt), epy.lib_name_fmt)
+    class_string += createPyFuncLoader("{0}_Destroy".format(klass.name_fmt), "", [("ctypes.c_void_p",)], epy.lib_name_fmt)
 
     class_string += "class {0}(object):\n".format(klass.name)
 
@@ -771,12 +778,13 @@ def generatePython(epy):
     python = PYTHON_HEADER.format(__version__, today, epy.lib_name_fmt, epy.lib)
 
     for section in epy.sections:
+        is_class = type(section) is Class
         # Namespaces and classes both use the same code for their header
         if issubclass(type(section), Namespace):
             functions_found = {f.name: 0 for f in section.functions}
             for f in section.functions:
                 full_name = section.name_fmt + '_' + f.name + str(functions_found[f.name])
-                python += createPyFuncLoader(full_name, epy.lib_name_fmt)
+                python += createPyFuncLoader(full_name, f.rtype.py_c_type, ([("ctypes.c_void_p",)] if is_class and not f.static else []) + f.param_list, epy.lib_name_fmt)
 
         if type(section) is Class:
             python += createPyClass(section, epy)
