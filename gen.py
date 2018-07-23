@@ -696,7 +696,7 @@ def createPyFunction(cname, name, function, epy, is_class = False, starting_iden
 
     func_str += param_str + ')\n'
 
-    if function.rtype != "void":
+    if function.rtype.raw != "void":
         func_str += ident + "return result\n"
 
     return func_str
