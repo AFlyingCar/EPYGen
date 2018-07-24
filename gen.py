@@ -641,7 +641,7 @@ class Epy(object):
         return (name, default)
 
 def formatLibName(lib_name):
-    return '_'.join(lib_name.split('.')).upper() # libfile.so.1 -> LIBFILE_SO_1
+    return '_'.join('_'.join(('_'.join(lib_name.split('.')).split('/'))).split('\\')).upper() # libfile.so.1 -> LIBFILE_SO_1
 
 def CPPTypeToCType(cpptype):
     return cpptype
@@ -714,6 +714,10 @@ def createPyFuncLoader(fname, rtype, params, lib_name, ident = ""):
                                  ','.join([p[0] if type(p[0]) == str else p[0].py_c_type for p in params]))
 
 def createPyCtor(ctor_list, klass, epy):
+    # Do not generate a constructor if none are defined
+    if len(ctor_list) == 0:
+        return ""
+
     params = ["self"]
     ctor = "    def __init__("
 
@@ -1042,7 +1046,7 @@ def generateCPP(epy):
     return cplusplus
 
 def generate(filename):
-    epy = Epy(filename, open(filename).read().strip(), lib_obj_name)
+    epy = Epy(filename, open(filename).read().strip(), lib_obj_name.replace('\\', '\\\\'))
 
     print("EPY\n===")
     print("has class:", epy.hasclasses)
