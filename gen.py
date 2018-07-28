@@ -472,7 +472,7 @@ class Epy(object):
                 state["error"] = True
                 return state
             virtual = True
-            func = func[6:].lstrip()
+            func = func[8:].lstrip()
 
         func_and_tparams, param_str = func.split('(', 1)
         if('<') in func_and_tparams:
@@ -850,7 +850,7 @@ def createCPPPyExceptionWrapper(throw, fname):
 
     return exc_wrapper
 
-def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_num = 0):
+def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_num = 0, is_virtual = False):
     ctor_str = "    "
 
     func_name = "{0}'s Constructor".format(klass_name)
@@ -872,6 +872,9 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
         ctor_str += p[0].c_type + ' param' + str(pcount) + ','
         pcount += 1
 
+    if is_virtual:
+        ctor_str += "PyObject* pyobj"
+
     if ctor_str.endswith(','):
         ctor_str = ctor_str[:-1]
 
@@ -884,6 +887,9 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
     for p in params:
         # Generate casts to cpp types
         ctor_str += "{0}({1})".format(p[0].raw, 'param' + str(pcount)) + ","
+
+    if is_virtual:
+        ctor_str += "pyobj"
 
     if ctor_str.endswith(','):
         ctor_str = ctor_str[:-1] # Remove the trailing ,
@@ -899,10 +905,45 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
 
     return ctor_str + "    }\n"
 
+def createCPPFunctionHeader(cres_type, full_name, function, is_class):
+    func_header = ""
+    if is_windows:
+        func_header += "__declspec(dllexport) "
+
+    if type(cres_type) == str:
+        func_header += cres_type + " "
+    else:
+        if cres_type.is_array:
+            func_header += "void "
+        else:
+            func_header += cres_type.c_type + ' '
+    func_header += full_name + "("
+
+    # Generate parameter listing
+
+    if is_class and not function.static:
+        if function.const:
+            func_header += "const "
+        func_header += "void* self,"
+
+    pcount = 0
+    for p in function.param_list:
+        func_header += p[0].c_type + ' param' + str(pcount) + ','
+        pcount += 1
+
+    if type(cres_type) != str:
+        if cres_type.is_array:
+            func_header += cres_type.toCArrayOutputParams().format("result")
+
+    if func_header.endswith(','):
+        func_header = func_header[:-1] # Remove the trailing ,
+
+    func_header += ")"
+    return func_header
+
 def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is_class = False):
     func_string = "    "
     cres_type = CPPTypeToCType(function.rtype)
-    # Generate header
 
     # Generate exception globals if they have not yet been referenced
     for t in function.throws:
@@ -911,37 +952,10 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
 
             referenced_throws.append(t)
 
+    # Generate header
+    func_string += createCPPFunctionHeader(cres_type, full_name, function, is_class) + " {\n"
+
     has_ret_val = (cres_type.raw != "void")
-
-    if is_windows:
-        func_string += "__declspec(dllexport) "
-
-    if cres_type.is_array:
-        func_string += "void "
-    else:
-        func_string += cres_type.c_type + ' '
-    func_string += full_name + "("
-
-    # Generate parameter listing
-
-    if is_class and not function.static:
-        if function.const:
-            func_string += "const "
-        func_string += "void* self,"
-
-    pcount = 0
-    for p in function.param_list:
-        func_string += p[0].c_type + ' param' + str(pcount) + ','
-        pcount += 1
-
-    if cres_type.is_array:
-        func_string += cres_type.toCArrayOutputParams().format("result")
-
-    if func_string.endswith(','):
-        func_string = func_string[:-1] # Remove the trailing ,
-
-    func_string += ") {\n"
-
     # Generate contents
     if is_class and not function.static:
         func_string += createCPPNullCheck(2, "self", name)
@@ -987,19 +1001,75 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
 
     return func_string
 
+def createCPPVirtualFuncWrapper(func, orig_name, wrap_name):
+    vfunc_str = ""
+    ident = "    " * 2
+
+    # cres_type = CPPTypeToCType(func.rtype)
+    # We pass False for is_class so that no `self` parameter gets generated
+    vfunc_str += ident + createCPPFunctionHeader(func.rtype.raw, func.name, func, False)
+    vfunc_str += (" const" if func.const else "") + " override {\n"
+
+    ident += "    "
+
+    param_str = ", ".join(['param' + str(i) for i in range(len(func.param_list))])
+
+    vfunc_str += ident + "if(m_pyobj != nullptr){\n"
+    vfunc_str += ident + "    PyObject* result = PyObject_CallMethodObjArgs(m_pyobj, PyBytes_FromString(\"{0}\"), {1}".format(func.name, param_str)
+    vfunc_str += "NULL);\n"
+    # Return PyObject as CPP type here
+    if func.rtype != "void":
+        vfunc_str += ident + "    " + func.rtype.createPyObjectTransformation("result", "return ") + ";\n"
+        # vfunc_str += ident + "    return Epy::PyObjectToType<{0}>(result);\n".format(func.rtype.raw)
+
+    vfunc_str += ident + "} else {\n"
+    vfunc_str += ident + "    {3}{0}::{1}({2});\n".format(orig_name, func.name, param_str, "return " if func.rtype != "void" else "")
+    vfunc_str += ident + "}\n"
+
+    ident = "    " * 2
+    vfunc_str += ident + "}\n"
+
+    return vfunc_str
+
+def createCPPClassWrapperCtor(orig_name, wrap_name, ctor):
+    ctor_str = "        {0}(".format(wrap_name)
+    # Generate Constructor Params
+    pcount = 0
+    for p in ctor[0]:
+        ctor_str += p[0].raw + ' param' + str(pcount) + ','
+        pcount += 1
+
+    ctor_str += "PyObject* pyobj): "
+
+    line_up = len(ctor_str)
+
+    ctor_str += "{0}({1}),\n".format(orig_name, ', '.join(['param' + str(i) for i in range(pcount)]))
+    # Pass parameters to original constructor
+
+    ctor_str += (" " * line_up) + "m_pyobj(pyobj)\n"
+    ctor_str += "        { }\n"
+
+    return ctor_str
+
 def createCPPClassWrapper(orig_name, wrap_name, klass):
     class_string = ""
 
     # Use structure so we don't havve to deal with accessors
-    class_string += "class {0}: public {1} {\n    public:\n".format(wrap_name, orig_name)
-    class_string += "        ~{0}() { }\n"
+    class_string += "class {0}: public {1} {{\n".format(wrap_name, orig_name)
+    class_string += "    public:\n"
+    for c in klass.ctors:
+        class_string += createCPPClassWrapperCtor(orig_name, wrap_name, c)
+    class_string += "        ~{0}() {{ }}\n".format(wrap_name)
 
     for f in klass.virtual_funcs:
         # Generate a function wrapper for every virtual function which handles
         #  whether to use the Python function or the C++ one
-        pass
+        class_string += createCPPVirtualFuncWrapper(f, orig_name, wrap_name)
 
-    class_string += "}\n"
+    class_string += "    private:\n"
+    class_string += "       PyObject* m_pyobj;\n"
+
+    class_string += "};\n"
 
     return class_string
 
@@ -1008,7 +1078,9 @@ def createCPPClass(klass, epy, reffed_throws):
 
     class_name = klass.name
 
-    if len(klass.virtual_funcs) > 0:
+    is_virtual = len(klass.virtual_funcs) > 0
+
+    if is_virtual:
         wrapped_name = "_pywrapped_" + class_name
         class_string += createCPPClassWrapper(class_name, wrapped_name, klass)
         class_name = wrapped_name
@@ -1017,7 +1089,7 @@ def createCPPClass(klass, epy, reffed_throws):
 
     ccount = 0
     for ctor in klass.ctors:
-        class_string += createCPPCtor(klass.name, ctor[0], ctor[2], epy, reffed_throws, ccount)
+        class_string += createCPPCtor(class_name, ctor[0], ctor[2], epy, reffed_throws, ccount, is_virtual)
         ccount += 1
 
     if klass.dtor:
@@ -1057,13 +1129,13 @@ def generate(filename):
 
     python = generatePython(epy)
 
-    print("PYTHON\n======\n")
-    print(python)
+    # print("PYTHON\n======\n")
+    # print(python)
 
     cpp = generateCPP(epy)
 
-    # print("CPP\n===\n")
-    # print(cpp)
+    print("CPP\n===\n")
+    print(cpp)
 
     py_name = filename[:-3] + "py"
     cpp_name = filename[:-4] + "_wrap.cpp"
