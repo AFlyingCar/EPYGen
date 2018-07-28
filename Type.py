@@ -51,6 +51,7 @@ class Type(object):
 
         self.typedef = ""
         self.c_type = ""
+        self.cpp_type = ""
         self.py_type = ""
         self.py_c_type = ""
 
@@ -71,10 +72,12 @@ class Type(object):
 
             self.typedef = t.typedef
             self.c_type = t.c_type
+            self.cpp_type = t.cpp_type
             self.py_type = t.py_type
             self.py_c_type = t.py_c_type
         else:
             self.buildCType()
+            self.buildCPPType()
             self.buildPyType()
             self.buildPyCType()
 
@@ -122,6 +125,12 @@ class Type(object):
         else:
             return var
 
+    def createPyObjectTransformation(self, var, prefix = ""):
+        if self.full_name == "std_string":
+            return "{1}PyBytes_AsString({0})".format(var, prefix)
+        else:
+            return "throw std::invalid_argument(\"Invalid PyObject transformation type: {0}\")".format(self.raw)
+
     def buildCType(self):
         # NOTE: If not a builtin, we should just return a void*, and let python handle
         #  the conversion
@@ -149,6 +158,9 @@ class Type(object):
         else:
             # Make sure we are still a string
             if self.full_name == "std_string": self.c_type += "*"
+
+    def buildCPPType(self):
+        self.cpp_type = '::'.join(self.namespaces + [self.type_name])
 
     def buildPyType(self):
         if self.namespaces == ["std"] and self.type_name == "string":
@@ -309,63 +321,4 @@ if __name__ == "__main__":
     t = parseType("std::vector<int>()")
     print(t.c_type)
     print(t.py_type)
-    pass
-
-"""
-    t = Type("int")
-    print(t.is_const)
-    print(t.is_ptr)
-    print(t.is_cptr)
-    print(t.c_type)
-    print(t.py_type)
-
-    t = Type("int*")
-    print(t.is_const)
-    print(t.is_ptr)
-    print(t.is_cptr)
-    print(t.c_type)
-    print(t.py_type)
-
-    t = Type("const int")
-    print(t.is_const)
-    print(t.is_ptr)
-    print(t.is_cptr)
-    print(t.c_type)
-    print(t.py_type)
-
-    t = Type("const int const *")
-    print(t.is_const)
-    print(t.is_ptr)
-    print(t.is_cptr)
-    print(t.c_type)
-    print(t.py_type)
-
-    t = Type("std::vector<int>")
-    print(t.is_const)
-    print(t.is_ptr)
-    print(t.is_cptr)
-    print(t.c_type)
-    print(t.py_type)
-
-    t = Type("std::map<float, int>")
-    print(t.is_const)
-    print(t.is_ptr)
-    print(t.is_cptr)
-    print(t.c_type)
-    print(t.py_type)
-
-    t = Type("std::function<int(float)>")
-    print(t.is_const)
-    print(t.is_ptr)
-    print(t.is_cptr)
-    print(t.c_type)
-    print(t.py_type)
-
-    t = Type("int (*) (double, char, float)")
-    print(t.is_const)
-    print(t.is_ptr)
-    print(t.is_cptr)
-    print(t.c_type)
-    print(t.py_type)
-"""
 
