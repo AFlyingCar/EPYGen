@@ -45,6 +45,8 @@ class Type(object):
         self.is_ptr = is_ptr
         self.is_cptr = is_ptr_const
         self.is_function = is_function
+        # We are a reference if we end with an &
+        self.is_reference = raw.rstrip().endswith('&')
 
         name_parts = self.namespaces + [self.type_name] + list(map(str, self.tparams))
         self.full_name = '_'.join(name_parts)
@@ -126,10 +128,21 @@ class Type(object):
             return var
 
     def createPyObjectTransformation(self, var, prefix = ""):
+        transformation = ""
+        failure = False
+
         if self.full_name == "std_string":
-            return "{1}PyBytes_AsString({0})".format(var, prefix)
+            transformation = "{1}PyBytes_AsString({0})".format(var, prefix)
+        elif self.full_name == "void": # Handle the case of a void type.
+            return ""
         else:
-            return "throw std::invalid_argument(\"Invalid PyObject transformation type: {0}\")".format(self.raw)
+            failure = True
+            transformation = "throw std::invalid_argument(\"Invalid PyObject transformation type: {0}\")".format(self.raw)
+
+        if not failure and self.is_ptr and not self.is_reference:
+            transformation = "new {0}({1})".format(self.cpp_type, transformation)
+
+        return transformation
 
     def buildCType(self):
         # NOTE: If not a builtin, we should just return a void*, and let python handle
