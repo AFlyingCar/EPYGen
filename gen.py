@@ -867,6 +867,9 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
 
     ctor_str += "void* _pywrapped_{0}_Create{1}(".format(klass_name, str(ctor_num) if ctor_num > 0 else "")
 
+    if is_virtual:
+        klass_name = "_pywrapped_{0}".format(klass_name)
+
     pcount = 0
     for p in params:
         ctor_str += p[0].c_type + ' param' + str(pcount) + ','
@@ -905,9 +908,11 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
 
     return ctor_str + "    }\n"
 
-def createCPPFunctionHeader(cres_type, full_name, function, is_class):
+def createCPPFunctionHeader(cres_type, full_name, function, is_class, is_virtual = False):
     func_header = ""
-    if is_windows:
+
+    # Don't generate the declspec call on virtual functions (those defined in a class wrapper)
+    if is_windows and not is_virtual:
         func_header += "__declspec(dllexport) "
 
     if type(cres_type) == str:
@@ -1005,9 +1010,15 @@ def createCPPVirtualFuncWrapper(func, orig_name, wrap_name):
     vfunc_str = ""
     ident = "    " * 2
 
-    # cres_type = CPPTypeToCType(func.rtype)
+    # Make sure we don't return references, as we do not hold onto the lifespan
+    #  here
+    # Note: This is a temporary fix, but I just don't really know how to properly
+    #  handle references yet. Fix ASAP as virtual functions that return references
+    #  cannot be exposed.
+    rtype = func.rtype.cpp_type if func.rtype.is_reference else func.rtype.raw
+
     # We pass False for is_class so that no `self` parameter gets generated
-    vfunc_str += ident + createCPPFunctionHeader(func.rtype.raw, func.name, func, False)
+    vfunc_str += ident + createCPPFunctionHeader(rtype, func.name, func, False, True)
     vfunc_str += (" const" if func.const else "") + " override {\n"
 
     ident += "    "
@@ -1083,7 +1094,7 @@ def createCPPClass(klass, epy, reffed_throws):
     if is_virtual:
         wrapped_name = "_pywrapped_" + class_name
         class_string += createCPPClassWrapper(class_name, wrapped_name, klass)
-        class_name = wrapped_name
+        # class_name = wrapped_name
 
     class_string += "extern \"C\" {\n"
 
