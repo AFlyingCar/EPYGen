@@ -5,6 +5,8 @@
 import re
 import Type, Section
 
+from Constants import ENABLE_DEBUG
+
 CLASS_TYPE = 0
 NSPACE_TYPE = 1
 ENUM_TYPE = 2
@@ -119,7 +121,8 @@ class Epy(object):
             i += 1
 
     def parseStatement(self, statement, state):
-        print("Statement:", statement)
+        if ENABLE_DEBUG:
+            print("Statement:", statement)
 
         if not state["in_section"] and not self.mod_name:
             self.mod_name = statement
@@ -188,7 +191,8 @@ class Epy(object):
             print("Error: Template parameter lists must be surrounded with <>")
             return None
 
-        print("parsing tparam list")
+        if ENABLE_DEBUG:
+            print("parsing tparam list")
 
         param_str = param_str[1:-1]
 
@@ -202,7 +206,8 @@ class Epy(object):
             c = param_str[i]
 
             if c == ',' and pcount == 0:
-                print("Found parameter `" + ptype + "`")
+                if ENABLE_DEBUG:
+                    print("Found parameter `" + ptype + "`")
                 params.append((Type.parseType(ptype.strip()), defaulted))
                 ptype = ""
                 defaulted = False
@@ -228,12 +233,13 @@ class Epy(object):
             i += 1
 
         if ptype:
-            print("Found parameter `" + ptype + "`")
+            if ENABLE_DEBUG:
+                print("Found parameter `" + ptype + "`")
             params.append((Type.parseType(ptype.strip()), defaulted))
 
-        print("Found " + str(len(params)) + " template parameters")
-
-        print("done")
+        if ENABLE_DEBUG:
+            print("Found " + str(len(params)) + " template parameters")
+            print("done")
 
         return params
 
@@ -247,7 +253,8 @@ class Epy(object):
             print("Error: Parameter lists must be surrounded with ()")
             return None
 
-        print("parsing param list")
+        if ENABLE_DEBUG:
+            print("parsing param list")
 
         param_str = param_str[1:-1]
 
@@ -261,7 +268,8 @@ class Epy(object):
             c = param_str[i]
 
             if c == ',' and pcount == 0:
-                print("Found parameter `" + ptype + "`")
+                if ENABLE_DEBUG:
+                    print("Found parameter `" + ptype + "`")
                 params.append((Type.parseType(ptype.strip()), defaulted))
                 ptype = ""
                 defaulted = False
@@ -286,12 +294,13 @@ class Epy(object):
             i += 1
 
         if ptype:
-            print("Found parameter `" + ptype + "`")
+            if ENABLE_DEBUG:
+                print("Found parameter `" + ptype + "`")
             params.append((Type.parseType(ptype.strip()), defaulted))
 
-        print("Found " + str(len(params)) + " parameters")
-
-        print("done")
+        if ENABLE_DEBUG:
+            print("Found " + str(len(params)) + " parameters")
+            print("done")
 
         return params, throws_str
 
@@ -320,7 +329,8 @@ class Epy(object):
 
         param_list, throws_str = self.parseParamList(param_str)
 
-        print(throws_str)
+        if ENABLE_DEBUG:
+            print(throws_str)
 
         throws = self.parseThrowsStr(throws_str)
 
@@ -397,10 +407,11 @@ class Epy(object):
             tparams = "<>"
         param_str = '(' + param_str.lstrip()
 
-        print("Parsing function `" + func + "` with rtype `" + rtype + "`, parameters",
-              param_str, "tparams", tparams, "and modifiers",
-              ("const " if const else ""), ("static " if static else ""),
-              ("virtual" if virtual else ""))
+        if ENABLE_DEBUG:
+            print("Parsing function `" + func + "` with rtype `" + rtype + "`, parameters",
+                  param_str, "tparams", tparams, "and modifiers",
+                  ("const " if const else ""), ("static " if static else ""),
+                  ("virtual" if virtual else ""))
 
         param_list, throws_str = self.parseParamList(param_str)
         tparam_list = self.parseTParams(tparams)
@@ -479,10 +490,11 @@ class Epy(object):
             tparams = "<>"
         param_str = '(' + param_str.lstrip()
 
-        print("Parsing function `" + func + "` with rtype `" + rtype + "`, parameters",
-              param_str, "tparams", tparams, "and modifiers",
-              ("const " if const else ""), ("static " if static else ""),
-              ("virtual" if virtual else ""))
+        if ENABLE_DEBUG:
+            print("Parsing function `" + func + "` with rtype `" + rtype + "`, parameters",
+                  param_str, "tparams", tparams, "and modifiers",
+                  ("const " if const else ""), ("static " if static else ""),
+                  ("virtual" if virtual else ""))
 
         param_list, throws_str = self.parseParamList(param_str)
         tparam_list = self.parseTParams(tparams)
