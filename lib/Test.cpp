@@ -11,7 +11,7 @@
 Hello::Hello(const std::string& m): m_message(m) { }
 Hello::~Hello(){ }
 
-const std::string& Hello::say() const {
+std::string Hello::say() const {
     return m_message;
 }
 

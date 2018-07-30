@@ -32,7 +32,7 @@ comment
 ctor(std::string =);
 dtor;
 
-func const say() throws std::exception -> const std::string&;
+func const virtual say() throws std::exception -> const std::string&;
 
 func mparam(int, float) -> void;
 

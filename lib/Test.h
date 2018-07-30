@@ -11,7 +11,7 @@ class API Hello {
         Hello(const std::string& = "Hello, World!");
         ~Hello();
 
-        const std::string& say() const;
+        virtual std::string say() const;
 
         void mparam(int, float);
 
