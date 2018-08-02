@@ -26,7 +26,10 @@ SOURCES=lib/Test.cpp lib/Test_wrap.cpp
 CXXSOURCES=$(SOURCES)
 CXXOUTS=$(patsubst %.cpp,%.o,$(CXXSOURCES))
 
-all: | epy $(CXXSOURCES)
+all: | epy library
+	@echo
+
+library: $(CXXSOURCES)
 	$(CXX) $(LFLAGS) $(CXXFLAGS) -DEXPORT -shared $(CXXSOURCES) -o $(DLL_OUT)
 	$(CXX) $(LFLAGS) $(CXXFLAGS) Main.cpp -o Test.exe $(LIB_OUT)
 
