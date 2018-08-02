@@ -12,7 +12,7 @@ NSPACE_TYPE = 1
 ENUM_TYPE = 2
 
 class Function(object):
-    def __init__(self, func, rtype, param_list, tparam_list, const, static, virtual, throws, owner):
+    def __init__(self, func, rtype, param_list, tparam_list, const, static, virtual, abstract, throws, owner):
         self.name = func
         self.rtype = rtype
         self.param_list = param_list
@@ -20,12 +20,13 @@ class Function(object):
         self.const = const
         self.static = static
         self.virtual = virtual
+        self.abstract = abstract
         self.throws = throws
         self.owner = owner
 
 class Operator(Function):
-    def __init__(self, func, rtype, param_list, tparam_list, const, static, virtual, throws, owner):
-        super().__init__(func, rtype, param_list, tparam_list, const, static, virtual, throws, owner)
+    def __init__(self, func, rtype, param_list, tparam_list, const, static, virtual, abstract, throws, owner):
+        super().__init__(func, rtype, param_list, tparam_list, const, static, virtual, abstract, throws, owner)
 
 class PyLiteral(object):
     def __init__(self, literal):
@@ -373,6 +374,7 @@ class Epy(object):
         const = False
         static = False
         virtual = False
+        abstract = False
 
         # class specific parsing
         # We check the space after each one to make sure the keywords aren't part of the next token
@@ -397,6 +399,14 @@ class Epy(object):
                 return state
             virtual = True
             func = func[8:].lstrip()
+        elif func.startswith("abstract "):
+            if not isclass:
+                print("Error: abstract only allowed on class sections.")
+                state["error"] = True
+                return state
+            virtual = True
+            abstract = True
+            func = func[9:].lstrip()
 
         func_and_tparams, param_str = func.split('(', 1)
         if('<') in func_and_tparams:
@@ -411,7 +421,8 @@ class Epy(object):
             print("Parsing function `" + func + "` with rtype `" + rtype + "`, parameters",
                   param_str, "tparams", tparams, "and modifiers",
                   ("const " if const else ""), ("static " if static else ""),
-                  ("virtual" if virtual else ""))
+                  ("virtual" if virtual else ""),
+                  ("abstract" if abstract else ""))
 
         param_list, throws_str = self.parseParamList(param_str)
         tparam_list = self.parseTParams(tparams)
@@ -427,12 +438,14 @@ class Epy(object):
         # Generate Function object and append to sobj
         state["sobj"].functions.append(Function(func, Type.parseType(rtype), param_list,
                                                 tparam_list, const, static,
-                                                virtual, throws, state["sobj"]))
+                                                virtual, abstract, throws, state["sobj"]))
         if virtual:
             state["sobj"].virtual_funcs.append(Function(func, Type.parseType(rtype), param_list,
                                                         tparam_list, const,
-                                                        static, virtual, throws,
-                                                        state["sobj"]))
+                                                        static, virtual, abstract,
+                                                        throws, state["sobj"]))
+        if abstract:
+            state["sobj"].abstract = True
 
         return state
 
@@ -456,6 +469,7 @@ class Epy(object):
         const = False
         static = False
         virtual = False
+        abstract = False
 
         # class specific parsing
         # We check the space after each one to make sure the keywords aren't part of the next token
@@ -480,6 +494,14 @@ class Epy(object):
                 return state
             virtual = True
             func = func[6:].lstrip()
+        elif func.startswith("abstract "):
+            if not isclass:
+                print("Error: abstract only allowed on class sections.")
+                state["error"] = True
+                return state
+            virtual = True
+            abstract = True
+            func = func[9:].lstrip()
 
         func_and_tparams, param_str = func.split('(', 1)
         if('<') in func_and_tparams:
@@ -494,7 +516,8 @@ class Epy(object):
             print("Parsing function `" + func + "` with rtype `" + rtype + "`, parameters",
                   param_str, "tparams", tparams, "and modifiers",
                   ("const " if const else ""), ("static " if static else ""),
-                  ("virtual" if virtual else ""))
+                  ("virtual" if virtual else ""),
+                  ("abstract" if abstract else ""))
 
         param_list, throws_str = self.parseParamList(param_str)
         tparam_list = self.parseTParams(tparams)
@@ -504,8 +527,11 @@ class Epy(object):
         # Generate Function object and append to sobj
         state["sobj"].functions.append(Operator(func, Type.parseType(rtype),
                                                 param_list, tparam_list, const,
-                                                static, virtual, throws,
+                                                static, virtual, abstract, throws,
                                                 state["sobj"]))
+
+        if abstract:
+            state["sobj"].abstract = True
 
         return state
 
