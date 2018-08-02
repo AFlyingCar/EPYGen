@@ -4,4 +4,6 @@ all:
 
 basic:
 	$(MAKE) -C tests/basic
+abstract:
+	$(MAKE) -C tests/abstract
 
