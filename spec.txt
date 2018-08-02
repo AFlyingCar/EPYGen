@@ -41,11 +41,11 @@ ctor{<[TPARAM1], [TPARAM2], ...>} ([TYPE1] {=}, [TYPE2] {=}, ...) {throws [EXCEP
 // if one is virtual, the class is marked as virtual
 
 // normal functions
-func {const} {static|virtual} [FUNCTION]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=},
+func {const} {static|virtual|abstract} [FUNCTION]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=},
                                                                        [TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}, ...)
                                                                        {throws [EXCEPTION1], [EXCEPTION2]} -> [RET];
 
-operator [OPTYPE]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=}
+operator {const} {static|virtual|abstract} [OPTYPE]{<[TPARAM1], [TPARAM2], ...>} ([TYPE1]{<[TPARAM1], [TPARAM2], ...>} {=}
                                                 {,[TYPE2]{<[TPARAM1], [TPARAM2], ...>} {=}})
                                                 {throws [EXCEPTION1], [EXCEPTION2]} -> [RET];
 
