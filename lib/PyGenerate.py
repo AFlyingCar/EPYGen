@@ -9,6 +9,18 @@ from Constants import ENABLE_DEBUG
 def createPyTypeCheck(param_name, type, ident = ""):
     return Constants.PY_TYPE_CHECK.format(ident, param_name, type.py_type, type.createPyTransformation(param_name))
 
+def createPyABCFunction(name, function, starting_ident = 1):
+    if ENABLE_DEBUG:
+        print("Creating Abstract Base Class function")
+
+    ident = '    ' * starting_ident
+
+    f_str = ident + "@abstractmethod\n"
+    f_str += ident + "def {0}(self,{1}):\n".format(name, ','.join(['param' + str(i) for i in range(len(function.param_list))]))
+    f_str += ident + '    pass\n'
+
+    return f_str
+
 def createPyFunction(cname, name, function, epy, is_class = False, starting_ident = 0):
     if ENABLE_DEBUG:
         print("Creating function " + function.name)
@@ -145,11 +157,12 @@ def createPyClass(klass, epy):
         class_string += createPyFuncLoader(ctor_name, "ctypes.c_void_p", params, epy.lib_name_fmt)
         ctor_count += 1
 
-    class_string += createPyFuncLoader("{0}_Destroy".format(klass.name_fmt), "", [("ctypes.c_void_p",)], epy.lib_name_fmt)
+    if klass.dtor:
+        class_string += createPyFuncLoader("{0}_Destroy".format(klass.name_fmt), "", [("ctypes.c_void_p",)], epy.lib_name_fmt)
 
-    class_string += "class {0}(object):\n".format(klass.name)
+    class_string += "class {0}({1}):\n".format(klass.name, "metaclass = ABCMeta" if klass.abstract else "object")
 
-    class_string += createPyCtor(klass.ctors, klass, epy)
+    class_string += createPyCtor(klass.ctors, klass, epy) + "\n"
 
     if klass.dtor:
         class_string += Constants.PY_DEL_FUNC.format(epy.lib_name_fmt, klass.name_fmt)
@@ -158,9 +171,12 @@ def createPyClass(klass, epy):
     functions_found = {f.name: 0 for f in klass.functions}
 
     for f in klass.functions:
-        full_name = klass.name_fmt + '_' + f.name + str(functions_found[f.name])
-        class_string += createPyFunction(full_name, f.name + str(functions_found[f.name]),
-                                         f, epy, True, 1)
+        if f.abstract:
+            class_string += createPyABCFunction(f.name, f)
+        else:
+            full_name = klass.name_fmt + '_' + f.name + str(functions_found[f.name])
+            class_string += createPyFunction(full_name, f.name + str(functions_found[f.name]),
+                                             f, epy, True, 1)
         functions_found[f.name] += 1
 
     return class_string
@@ -168,16 +184,23 @@ def createPyClass(klass, epy):
 def generatePython(epy):
     python = Constants.PYTHON_HEADER.format(Constants.VERSION, Constants.TODAY, epy.lib_name_fmt, epy.lib)
 
+    imported_abc = False
+
     for section in epy.sections:
         is_class = type(section) is Section.Class
         # Namespaces and classes both use the same code for their header
         if issubclass(type(section), Section.Namespace):
             functions_found = {f.name: 0 for f in section.functions}
             for f in section.functions:
-                full_name = section.name_fmt + '_' + f.name + str(functions_found[f.name])
-                python += createPyFuncLoader(full_name, f.rtype.py_c_type, ([("ctypes.c_void_p",)] if is_class and not f.static else []) + f.param_list, epy.lib_name_fmt)
+                if not f.abstract:
+                    full_name = section.name_fmt + '_' + f.name + str(functions_found[f.name])
+                    python += createPyFuncLoader(full_name, f.rtype.py_c_type, ([("ctypes.c_void_p",)] if is_class and not f.static else []) + f.param_list, epy.lib_name_fmt)
 
         if type(section) is Section.Class:
+            # If this is the first abstract class, add an import for abc
+            if section.abstract and not imported_abc:
+                python += "\nfrom abc import ABCMeta, abstractmethod\n"
+                imported_abc = True
             python += createPyClass(section, epy)
         elif type(section) is Parse.PyLiteral:
             python += section.literal
