@@ -1,0 +1,21 @@
+Abstract;
+
+start;
+class ABS;
+
+@cpp
+
+#include "ABS.h"
+
+@
+
+ctor();
+dtor;
+
+func abstract pure(const std::string&) -> void;
+
+func static sayHelloThere() -> void;
+func sayGK() -> void;
+
+end;
+
