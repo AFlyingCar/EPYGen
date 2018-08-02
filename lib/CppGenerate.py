@@ -7,18 +7,46 @@ import Type, Parse, Section, Constants
 def CPPTypeToCType(cpptype): # TODO
     return cpptype
 
+##
+# @brief Generates a C++ null pointer check.
+#
+# @param ident The indentation count.
+# @param var The variable name the check is being generated for.
+# @param fname The name of the function this check exists in.
+#
+# @return A string containing C++ code for a null pointer check.
+#
 def createCPPNullCheck(ident, var, fname):
     return ("    " * ident + "if({0} == nullptr) {{\n" +\
             "    " * ident + "    PyErr_SetString(PyExc_ValueError, \"Null pointer given for parameter {0} in function {1}\");\n" +\
             "    " * ident + "    return nullptr;\n" +\
             "    " * ident + "}}\n").format(var, fname)
 
+##
+# @brief Creates a Python object name for exceptions if a default one does not already exist.
+#
+# @param t The C++ exception type.
+#
+# @return The name of a C++ Py_Object representing an exception in Python.
+#
 def createCPPPyExceptionObjectName(t):
     if t in Constants.CPP_PY_EXCEPTION_MAPPING:
         return Constants.CPP_PY_EXCEPTION_MAPPING[t]
     else:
         return "_pywrapped_EXCEPTION_" + '_'.join(t.split('::'))
 
+##
+# @brief Generates a wrapper for a c++ exception
+# @details This is required so that exceptions aren't thrown into CPython,
+#          which does not handle C++ exceptions and would cause the entire stack
+#          to be unwound back to where python was originally initialized.
+#
+# @param throw The name of the exception type that should be wrapped around.
+# @param fname The name of the function this wrapper is being generated in.
+#
+# @return A string consisting of C++ code which handles an exception and raises
+#         a python exception.
+#
 def createCPPPyExceptionWrapper(throw, fname):
     exc_wrapper = "    " * 2
     exc_obj_name = createCPPPyExceptionObjectName(throw)
@@ -34,6 +62,8 @@ def createCPPPyExceptionWrapper(throw, fname):
     py_nspaces = '.'.join(nspaces)
 
     exc_wrapper += "}} catch(const {0}& e) {{\n".format(throw)
+
+    # Make sure we create the Python exception object if it isn't a constant
     if throw not in Constants.CPP_PY_EXCEPTION_MAPPING:
         exc_wrapper += Constants.CPP_PY_OBJ_WRAPPER_CREATOR.format("    " * 3, exc_obj_name, py_nspaces, exc_name)
 
@@ -42,6 +72,20 @@ def createCPPPyExceptionWrapper(throw, fname):
 
     return exc_wrapper
 
+##
+# @brief Generates a C-style function wrapper around a constructor for a class.
+#
+# @param klass_name The name of the class this constructor belongs to
+# @param params A list of parameters in the following format: (Type:type, bool:is_default)
+# @param throws A list of all exceptions this constructor may throw.
+# @param epy The Epy object for this file.
+# @param referenced_throws A list of all exceptions that have been referenced by
+#                          this class.
+# @param ctor_num Which constructor this is (used in case of multiple constructors).
+# @param is_virtual Whether this class has any virtual methods in it.
+#
+# @return A string containing C++ code for a C-style function wrapper around a constructor.
+#
 def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_num = 0, is_virtual = False):
     ctor_str = "    "
 
@@ -100,6 +144,18 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
 
     return ctor_str + "    }\n"
 
+##
+# @brief Generates the header of a C++ function wrapper.
+#
+# @param cres_type The result type of the function. Either a str or a Type.
+# @param full_name The full of the function to generate.
+# @param function The Function object containing information about this function.
+# @param is_class Whether or not this function is a method in a class.
+# @param is_virtual Whether or not this function is a virtual wrapper.
+# @param use_raw_types Whether or not the raw C++ type should be used.
+#
+# @return A string containing a C++ function wrapper header.
+#
 def createCPPFunctionHeader(cres_type, full_name, function, is_class, is_virtual = False, use_raw_types = False):
     func_header = ""
 
@@ -142,6 +198,19 @@ def createCPPFunctionHeader(cres_type, full_name, function, is_class, is_virtual
     func_header += ")"
     return func_header
 
+##
+# @brief Generates a C-style function wrapper around a C++ function.
+#
+# @param full_name The full name of the C-style function wrapper.
+# @param name The name of the original C++ function.
+# @param function The Function object.
+# @param epy The Epy object for this file.
+# @param referenced_throws A list of all exceptions that have been referenced by
+#                          this class.
+# @param is_class Whether this function is a method in a class.
+#
+# @return A string containing a C-style function wrapper for a C++ function.
+#
 def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is_class = False):
     func_string = "    "
     cres_type = CPPTypeToCType(function.rtype)
@@ -149,7 +218,7 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
     # Generate exception globals if they have not yet been referenced
     for t in function.throws:
         if t not in referenced_throws and t not in Constants.CPP_PY_EXCEPTION_MAPPING:
-            func_string += "static PyObject* " + createCPPPyExceptionObjectName(t) + " = nulllptr;\n    "
+            func_string += "static PyObject* " + createCPPPyExceptionObjectName(t) + " = nullptr;\n    "
 
             referenced_throws.append(t)
 
@@ -206,7 +275,15 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
 
     return func_string
 
-def createCPPVirtualFuncWrapper(func, orig_name, wrap_name):
+##
+# @brief Generates a Virtual function wrapper.
+#
+# @param func The Function object.
+# @param orig_name The name of the original class.
+#
+# @return A string containing a wrapper for a virtual C++ function.
+#
+def createCPPVirtualFuncWrapper(func, orig_name):
     vfunc_str = ""
     ident = "    " * 2
 
@@ -247,6 +324,15 @@ def createCPPVirtualFuncWrapper(func, orig_name, wrap_name):
 
     return vfunc_str
 
+##
+# @brief A wrapper around a C++ constructor for use in C++ class wrappers.
+#
+# @param orig_name The original name of the class
+# @param wrap_name The wrapped name of the class
+# @param ctor A tuple representing the constructor to generate.
+#
+# @return A string containing a wrapper for a C++ constructor.
+#
 def createCPPClassWrapperCtor(orig_name, wrap_name, ctor):
     ctor_str = "        {0}(".format(wrap_name)
     # Generate Constructor Params
@@ -266,7 +352,15 @@ def createCPPClassWrapperCtor(orig_name, wrap_name, ctor):
     ctor_str += "        { }\n"
 
     return ctor_str
-
+##
+# @brief A wrapper around a C++ class for dealing with polymorphism.
+#
+# @param orig_name The original name of the class
+# @param wrap_name The wrapped name of the class
+# @param klass The Class object to generate a wrapper for
+#
+# @return A string containing a wrapper for a C++ class.
+#
 def createCPPClassWrapper(orig_name, wrap_name, klass):
     class_string = ""
 
@@ -280,7 +374,7 @@ def createCPPClassWrapper(orig_name, wrap_name, klass):
     for f in klass.virtual_funcs:
         # Generate a function wrapper for every virtual function which handles
         #  whether to use the Python function or the C++ one
-        class_string += createCPPVirtualFuncWrapper(f, orig_name, wrap_name)
+        class_string += createCPPVirtualFuncWrapper(f, orig_name)
 
     class_string += "    private:\n"
     class_string += "       PyObject* m_pyobj;\n"
@@ -289,6 +383,15 @@ def createCPPClassWrapper(orig_name, wrap_name, klass):
 
     return class_string
 
+##
+# @brief Generates all wrappers for a C++ class.
+#
+# @param klass The Class object to generate wrappers for.
+# @param epy The Epy object for this file.
+# @param reffed_throws A list of all throws referenced in this file.
+#
+# @return A string containing all wrappers for the given Class object.
+#
 def createCPPClass(klass, epy, reffed_throws):
     class_string = ""
 
@@ -321,6 +424,13 @@ def createCPPClass(klass, epy, reffed_throws):
 
     return class_string
 
+##
+# @brief Generates all C++ wrapping code for a given Epy file.
+#
+# @param epy The Epy object for this file.
+#
+# @return A string containing all C++ wrapping code for this file.
+#
 def generateCPP(epy):
     cplusplus = Constants.CPP_HEADER.format(Constants.VERSION, Constants.TODAY)
 
@@ -333,3 +443,4 @@ def generateCPP(epy):
             cplusplus += section.literal
 
     return cplusplus
+
