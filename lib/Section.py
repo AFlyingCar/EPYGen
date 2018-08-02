@@ -29,6 +29,7 @@ class Class(Namespace):
         # Tuple: (param_list, tparam_list, throws, Class)
         self.ctors = []
         self.virtual_funcs = []
+        self.abstract = False
 
         # Nothing special needs to be done with the destructor, we just need to know that we have one
         self.dtor = False
