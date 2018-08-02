@@ -2,7 +2,7 @@
 # @Author: Tyler Robbins
 # @Date:   2018-07-29 20:22:14
 
-import re
+import re, os
 import Type, Section
 
 from Constants import ENABLE_DEBUG
@@ -40,12 +40,16 @@ class Epy(object):
     def __init__(self, filename, contents, lib_name):
         self.mod_name = ""
         self.sections = []
+        self.filename = filename
         self.lib = lib_name
         self.lib_name_fmt = formatLibName(lib_name)
         self.hasclasses = False
         self.hasenums = False
 
         self.parse(contents)
+
+    def libIndirection(self):
+        return "os.path.join({0})".format(', '.join(['".."'] * self.filename.count(os.path.sep)))
 
     def parse(self, contents):
         statement = ""

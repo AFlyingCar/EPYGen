@@ -182,7 +182,7 @@ def createPyClass(klass, epy):
     return class_string
 
 def generatePython(epy):
-    python = Constants.PYTHON_HEADER.format(Constants.VERSION, Constants.TODAY, epy.lib_name_fmt, epy.lib)
+    python = Constants.PYTHON_HEADER.format(Constants.VERSION, Constants.TODAY, epy.lib_name_fmt, epy.lib, epy.libIndirection())
 
     imported_abc = False
 
