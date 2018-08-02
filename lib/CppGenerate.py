@@ -170,6 +170,10 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
             call += "{0}::".format(function.owner.name)
         else:
             call += "(({0}*)self)->".format(("const " if function.const else "") + function.owner.name)
+
+    if function.virtual:
+        name = "Hello::" + name
+
     call += "{0}(".format(name)
 
     pcount = 0

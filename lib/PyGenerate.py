@@ -118,6 +118,10 @@ def createPyCtor(ctor_list, klass, epy):
         ctor += "{0}({1}), ".format(ctor_list[0][0][i][0].py_c_type, p.split(' ')[0])
         # ctor += p.split(' ')[0] + ', '
         i += 1
+
+    if len(klass.virtual_funcs) > 0:
+        ctor += " self"
+
     ctor = ctor.rstrip()
     if ctor.endswith(','):
         ctor = ctor[:-1]
@@ -135,7 +139,10 @@ def createPyClass(klass, epy):
     ctor_count = 0
     for c in klass.ctors:
         ctor_name = "_pywrapped_{0}_Create{1}".format(klass.name, str(ctor_count) if ctor_count > 0 else "")
-        class_string += createPyFuncLoader(ctor_name, "ctypes.c_void_p", c[0], epy.lib_name_fmt)
+        params = c[0][:] # Make sure we take a copy of this list
+        if len(klass.virtual_funcs) > 0:
+            params += [("ctypes.py_object",)]
+        class_string += createPyFuncLoader(ctor_name, "ctypes.c_void_p", params, epy.lib_name_fmt)
         ctor_count += 1
 
     class_string += createPyFuncLoader("{0}_Destroy".format(klass.name_fmt), "", [("ctypes.c_void_p",)], epy.lib_name_fmt)
