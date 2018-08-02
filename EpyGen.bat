@@ -1,4 +1,5 @@
 @ECHO OFF
 
-python36 lib\EpyGen.py
+SET SCRIPTPATH=%~dp0
+python36 %SCRIPTPATH%lib\EpyGen.py %*
 
