@@ -108,6 +108,12 @@ class Type(object):
 
         return var
 
+    def createNull(self):
+        if self.full_name == "std_string":
+            return '""'
+        elif self.is_function:
+            return "[]({0}) -> {1} {{ return {2}; }}".format(','.join([p.c_type for p in self.fparams]), self.c_type, "0")
+
     def createPyTransformation(self, var):
         if self.py_type == "bytes":
             return "{0}.encode() if type({0}) is str else bytes({0})".format(var)
