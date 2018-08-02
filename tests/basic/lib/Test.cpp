@@ -8,15 +8,19 @@
 
 #include <iostream>
 
-Hello::Hello(const std::string& m): m_message(m) { }
-Hello::~Hello(){ }
+Hello::Hello(const std::string& m): m_message(m) {
+    std::cout << "Created a Hello." << std::endl;
+}
+Hello::~Hello(){
+    std::cout << "Destroying Hello" << std::endl;
+}
 
 std::string Hello::say() const {
     return m_message;
 }
 
 void Hello::mparam(int, float) {
-    
+
 }
 void Hello::fparam(std::function<int(float, double)> f) {
     f(5, 4);
