@@ -8,7 +8,7 @@ CXXFLAGS=-std=c++17 -g -Xclang -flto-visibility-public-std $(INCLUDES) -DHAVE_CO
 DLL_OUT=Test.dll
 LIB_OUT=Test.lib
 
-PYTHON=python36
+EPYGEN=../../EpyGen.bat
 
 else
 LFLAGS:=$(shell python3-config --ldflags)
@@ -18,10 +18,8 @@ CXXFLAGS=-std=c++17 -g -Xclang -flto-visibility-public-std $(INCLUDES) -Wno-retu
 DLL_OUT=libTest.so
 LIB_OUT=-L. -lTest
 
-PYTHON=python
+EPYGEN=../../EpyGen.sh
 endif
-
-EPYGEN=../../EpyGen.py
 
 SOURCES=lib/Test.cpp lib/Test_wrap.cpp
 
@@ -33,5 +31,5 @@ all: | epy $(CXXSOURCES)
 	$(CXX) $(LFLAGS) $(CXXFLAGS) Main.cpp -o Test.exe $(LIB_OUT)
 
 epy: lib/Test.epy
-	$(PYTHON) $(EPYGEN) libTest.so lib/Test.epy
+	$(EPYGEN) libTest.so lib/Test.epy
 
