@@ -10,7 +10,7 @@ int main() {
 
     Py_Initialize();
 
-    PyRun_SimpleString("import a");
+    PyRun_SimpleString("import sys,os; sys.path.append(os.getcwd()); import a");
 
     Py_Finalize();
 
