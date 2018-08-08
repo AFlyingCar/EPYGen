@@ -13,6 +13,15 @@ IS_WINDOWS = os.name == 'nt'
 """ Set to True to enable debugging. """
 ENABLE_DEBUG = False
 
+PRIMITIVES = {
+    "int": "long",
+    "float": "double",
+    "double": "long",
+    "char": "long",
+    "short": "long",
+    "long": "long"
+}
+
 """ A mapping of C++ standard exceptions to their CPython equivalents. """
 CPP_PY_EXCEPTION_MAPPING = {
     "std::exception": "PyExc_Exception",
@@ -102,6 +111,25 @@ CPP_PY_OBJ_WRAPPER_CREATOR = """{0}if({1} == nullptr) {{
 """
 PY_TYPE_CHECK = """{0}if type({1}) != {2}:
 {0}    {1} = {3}
+"""
+
+CPP_VECTOR_TO_PYOBJECT_TRANSFORMATION = """[]({2} vec) -> PyObject* {{
+{0}    PyObject* list = PyList_New(vec.size());
+{0}    if(!list) {{
+{0}        PyErr_SetString(PyExc_MemoryError, "Unable to allocate enough memory for list elements.");
+{0}        return Py_None;
+{0}    }}
+{0}    for(size_t i = 0; i < vec.size(); ++i) {{
+{0}        PyObject* obj = {1}(vec[i]);
+{0}        if(!obj) {{
+{0}            Py_DECREF(list);
+{0}            PyErr_SetString(PyExc_MemoryError, "Unable to allocate enough memory for list elements.");
+{0}            return Py_None;
+{0}        }}
+{0}        PyList_SET_ITEM(list, i, obj);
+{0}    }}
+{0}    return list;
+{0}}}
 """
 
 """ The current date in ISO format. """
