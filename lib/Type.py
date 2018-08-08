@@ -1,5 +1,7 @@
 import re
 
+import Constants
+
 BUILTINS = ["bool", "int", "char", "float", "double"]
 
 CPP_PY_TYPE_MAP = {
@@ -47,6 +49,7 @@ class Type(object):
         self.is_function = is_function
         # We are a reference if we end with an &
         self.is_reference = raw.rstrip().endswith('&')
+        self.becomes_pyobj = False
 
         name_parts = self.namespaces + [self.type_name] + list(map(str, self.tparams))
         self.full_name = '_'.join(name_parts)
@@ -100,11 +103,11 @@ class Type(object):
 
         return oparams
 
-    def createCTransformation(self, var):
-        if self.full_name == "std_string":
-            return "({0}).c_str()".format(var)
-        elif self.is_function:
+    def createCTransformation(self, var, prefix = ""):
+        if self.is_function:
             return "(({0}){1})".format(self.asCFunction(), var)
+        elif self.becomes_pyobj:
+            return self.createToPyObjectTransformation(var, prefix)# + "({0})".format(var)
 
         return var
 
@@ -133,20 +136,47 @@ class Type(object):
         else:
             return var
 
-    def createPyObjectTransformation(self, var, prefix = ""):
+    def createPyObjectTransformation(self, prefix = ""):
         transformation = ""
         failure = False
 
         if self.full_name == "std_string":
-            transformation = "{1}PyBytes_AsString({0})".format(var, prefix)
+            transformation = "{1}PyBytes_AsString".format(prefix)
         elif self.full_name == "void": # Handle the case of a void type.
             return ""
+        elif self.full_name in Constants.PRIMITIVES:
+            return "Py{0}_As{0}".format(Constants.PRIMITIVES[self.full_name].capitalize())
         else:
             failure = True
-            transformation = "throw std::invalid_argument(\"Invalid PyObject transformation type: {0}\")".format(self.raw)
+            transformation = "nullptr;throw std::invalid_argument(\"Invalid PyObject transformation type: {0}\");".format(self.raw)
 
         if not failure and self.is_ptr and not self.is_reference:
             transformation = "new {0}({1})".format(self.cpp_type, transformation)
+
+        return transformation
+
+    def createToPyObjectTransformation(self, var, prefix = ""):
+        transformation = ""
+        failure = False
+
+        if self.full_name.startswith("std_vector"):
+            if len(self.tparams) != 1:
+                print("Template Error: STL Type `std::vector` must have 1 template parameter.");
+            transformation = Constants.CPP_VECTOR_TO_PYOBJECT_TRANSFORMATION.format(
+                    prefix, self.tparams[0].createPyObjectTransformation(), self.raw) + "({0})".format(var)
+        elif self.full_name == "std_string":
+            # TODO: We need to allocate new space for the string, as the memory
+            # is on the stack and disappears once the function ends
+            # We should also do this with Python's memory allocation system, so
+            #  that python manages the memory and not us.
+            transformation = "PyBytes_FromString({0}.c_str())".format(var)
+        elif self.full_name == "void": # Handle the case of a void type.
+            return "Py_None"
+        elif self.full_name in Constants.PRIMITIVES:
+            transformation = "Py{0}_From{0}({1})".format(Constants.PRIMITIVES[self.full_name].capitalize(), var)
+        else:
+            failure = True
+            transformation = "nullptr;throw std::invalid_argument(\"Invalid PyObject transformation type: {0}\");".format(self.raw)
 
         return transformation
 
@@ -154,11 +184,19 @@ class Type(object):
         # NOTE: If not a builtin, we should just return a void*, and let python handle
         #  the conversion
 
-        if self.full_name == "std_string":
+        if self.full_name == "std_string" and (self.is_reference or self.is_ptr):
             self.c_type = "char"
+            self.is_const = True # All strings are immutable
         elif self.full_name.startswith("std_vector") or \
-             self.full_name.startswith("std_map"):
-            self.is_array = True
+             self.full_name.startswith("std_map") or \
+             self.full_name.startswith("std_tuple") or \
+             self.full_name == "std_string":
+            self.c_type = "PyObject"
+            self.becomes_pyobj = True
+            self.is_ptr = True
+#        elif self.full_name.startswith("std_vector") or \
+#             self.full_name.startswith("std_map"):
+#            self.is_array = True
         else:
             self.c_type += self.full_name
 
@@ -201,11 +239,11 @@ class Type(object):
         if self.py_type == "str" or self.py_type == "bytes":
             self.py_c_type = "ctypes.c_char_p"
         elif self.py_type == "list":
-            self.py_c_type = "{0} * {1}" # ctype * array_count
+            self.py_c_type = "ctypes.py_object" # ctype * array_count
         elif self.py_type == "tuple":
-            self.py_c_type = "{0} * {1}"
+            self.py_c_type = "ctypes.py_object"
         elif self.py_type == "dict":
-            self.py_c_type = "{0} * {1}"
+            self.py_c_type = "ctypes.py_object"
         elif self.full_name in BUILTINS:
             self.py_c_type = CPY_TYPE_MAP[self.full_name]
         elif self.py_type == "object":
