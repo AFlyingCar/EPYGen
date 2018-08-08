@@ -211,8 +211,8 @@ def createCPPFunctionHeader(cres_type, full_name, function, is_class, is_virtual
 #
 # @return A string containing a C-style function wrapper for a C++ function.
 #
-def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is_class = False):
-    func_string = "    "
+def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is_class = False, ident = 0):
+    func_string = '    ' * ident
     cres_type = CPPTypeToCType(function.rtype)
 
     # Generate exception globals if they have not yet been referenced
@@ -230,8 +230,8 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
     if is_class and not function.static:
         func_string += createCPPNullCheck(2, "self", name)
 
-    func_string += "    " * 2 + "try {\n"
-    func_string += "    " * 3
+    func_string += "    " * (ident + 1) + "try {\n"
+    func_string += "    " * (ident + 2)
 
     if has_ret_val:
         func_string += "return "
@@ -259,19 +259,19 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
     call += ")"
 
     if has_ret_val:
-        call = cres_type.createCTransformation(call)
+        call = cres_type.createCTransformation(call, '    ' * (ident + 2))
 
     func_string += call + ";\n"
 
     for t in function.throws:
         func_string += createCPPPyExceptionWrapper(t, name)
 
-    func_string += "    " * 2 + "} catch (...) {\n"
-    func_string += "    " * 3 + "PyErr_SetString(PyExc_RuntimeError, \"An unspecified exception has occurred in {0}\");\n".format(name)
-    func_string += "    " * 3 + "return nullptr;\n"
-    func_string += "    " * 2 + "}\n"
+    func_string += ("    " * (ident + 1)) + "} catch (...) {\n"
+    func_string += ("    " * (ident + 2)) + "PyErr_SetString(PyExc_RuntimeError, \"An unspecified exception has occurred in {0}\");\n".format(name)
+    func_string += ("    " * (ident + 2)) + "return nullptr;\n"
+    func_string += ("    " * (ident + 1)) + "}\n"
 
-    func_string += "    }\n"
+    func_string += ("    " * ident) + "}\n"
 
     return func_string
 
@@ -307,7 +307,7 @@ def createCPPVirtualFuncWrapper(func, orig_name):
     vfunc_str += (',' if param_str and not param_str.endswith(',') else '') + "NULL);\n"
     # Return PyObject as CPP type here
     if str(func.rtype).strip() != "void":
-        vfunc_str += ident + "    " + func.rtype.createPyObjectTransformation("result", "return ") + ";\n"
+        vfunc_str += ident + "    " + func.rtype.createPyObjectTransformation("return ") + "({0});\n".format("result")
         # vfunc_str += ident + "    return Epy::PyObjectToType<{0}>(result);\n".format(func.rtype.raw)
 
     vfunc_str += ident + "} else {\n"
@@ -418,11 +418,28 @@ def createCPPClass(klass, epy, reffed_throws):
     for f in klass.functions:
         if not f.abstract:
             full_name = klass.name_fmt + '_' + f.name + str(functions_found[f.name])
-            class_string += createCPPFunction(full_name, f.name, f, epy, reffed_throws, True)
+            class_string += createCPPFunction(full_name, f.name, f, epy, reffed_throws, True, 1)
 
     class_string += "}\n"
 
     return class_string
+
+def createCPPNamespace(nspace, epy, reffed_throws):
+    nspace_string = ""
+
+    name = nspace.name
+    ident = 1
+
+    nspace_string += "extern \"C\" {\n"
+
+    functions_found = {f.name: 0 for f in nspace.functions}
+    for f in nspace.functions:
+        full_name = nspace.name_fmt + '_' + f.name + str(functions_found[f.name])
+        nspace_string += createCPPFunction(full_name, f.name, f, epy, reffed_throws, False, ident)
+
+    nspace_string += "}"
+
+    return nspace_string
 
 ##
 # @brief Generates all C++ wrapping code for a given Epy file.
@@ -439,6 +456,8 @@ def generateCPP(epy):
     for section in epy.sections:
         if type(section) is Section.Class:
             cplusplus += createCPPClass(section, epy, reffed_throws)
+        elif type(section) is Section.Namespace:
+            cplusplus += createCPPNamespace(section, epy, reffed_throws)
         elif type(section) is Parse.CppLiteral:
             cplusplus += section.literal
 
