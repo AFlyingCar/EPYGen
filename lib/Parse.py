@@ -49,7 +49,8 @@ class Epy(object):
         self.parse(contents)
 
     def libIndirection(self):
-        return "os.path.join({0})".format(', '.join(['".."'] * self.filename.count(os.path.sep)))
+        seps = self.filename.count(os.path.sep)
+        return "os.path.join({0})".format(', '.join(['".."'] * seps)) if seps > 0 else '\'\''
 
     def parse(self, contents):
         statement = ""
@@ -364,7 +365,7 @@ class Epy(object):
         elif type(state["sobj"]) is Section.Namespace:
             isclass = False
         else:
-            print("Internal Error: sobj is `" + str(type(state["sobj"])) + "` not Class")
+            print("Internal Error: sobj is `" + str(type(state["sobj"])) + "` not Class or Namespace")
             state["error"] = True
             return state
 
@@ -578,7 +579,7 @@ class Epy(object):
 
         state["sobj"] = Section.Namespace(name)
 
-        return type
+        return state
 
     def parseEnumValue(self, statement, state):
         if not type(state["sobj"]) is Section.Enum:
