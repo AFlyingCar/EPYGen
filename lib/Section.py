@@ -15,9 +15,9 @@ class Namespace(Section):
         self.functions = []
 
     def __str__(self):
-        s = super().__str__() + "\n"
+        s = "Namespace `" + super().__str__() + "` "
         for f in self.functions:
-            s += str(f) + "\n"
+            s += str(f) + ","
 
         return s
 
