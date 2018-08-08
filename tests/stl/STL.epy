@@ -1,0 +1,17 @@
+STL;
+
+start;
+namespace;
+
+@cpp
+#include "STL.h"
+@
+
+func GetVector() -> std::vector<int>;
+func GetMap() -> std::map<int, float>;
+func GetString() -> std::string;
+
+func GetTuple() -> std::tuple<int, float, std::string, double>;
+
+end;
+
