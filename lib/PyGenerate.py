@@ -145,6 +145,23 @@ def createPyCtor(ctor_list, klass, epy):
 
     return ctor
 
+def createPyNamespace(nspace, epy):
+    nspace_string = ""
+
+    # name -> countx
+    functions_found = {f.name: 0 for f in nspace.functions}
+
+    for f in nspace.functions:
+        if f.abstract:
+            nspace_string += createPyABCFunction(f.name, f)
+        else:
+            full_name = nspace.name_fmt + '_' + f.name + str(functions_found[f.name])
+            nspace_string += createPyFunction(full_name, f.name + str(functions_found[f.name]),
+                                              f, epy, False)
+        functions_found[f.name] += 1
+
+    return nspace_string
+
 def createPyClass(klass, epy):
     class_string = ""
 
@@ -202,6 +219,8 @@ def generatePython(epy):
                 python += "\nfrom abc import ABCMeta, abstractmethod\n"
                 imported_abc = True
             python += createPyClass(section, epy)
+        elif type(section) is Section.Namespace:
+            python += createPyNamespace(section, epy)
         elif type(section) is Parse.PyLiteral:
             python += section.literal
 
