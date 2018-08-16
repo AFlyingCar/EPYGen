@@ -125,7 +125,8 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
     pcount = 0
     for p in params:
         # Generate casts to cpp types
-        ctor_str += "{0}({1})".format(p[0].raw, 'param' + str(pcount)) + ","
+        # ctor_str += "{0}({1})".format(p[0].raw, 'param' + str(pcount)) + ","
+        ctor_str += "{0}({1})".format(p[0].createCPPTransformation(), 'param' + str(pcount)) + ","
 
     if is_virtual:
         ctor_str += "pyobj"
