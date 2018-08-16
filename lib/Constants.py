@@ -22,6 +22,15 @@ PRIMITIVES = {
     "long": "long"
 }
 
+PRIMITIVE_CONVERSION_FUNCTIONS = {
+    "int": "PyLong_FromLong",
+    "float": "PyFloat_FromDouble",
+    "double": "PyFloat_FromDouble",
+    "size_t": "PyLong_FromSize_t",
+    "char": "PyLong_FromLong",
+    "short": "PyLong_FromLong",
+}
+
 """ A mapping of C++ standard exceptions to their CPython equivalents. """
 CPP_PY_EXCEPTION_MAPPING = {
     "std::exception": "PyExc_Exception",
@@ -129,8 +138,33 @@ CPP_VECTOR_TO_PYOBJECT_TRANSFORMATION = """[]({2} vec) -> PyObject* {{
 {0}        PyList_SET_ITEM(list, i, obj);
 {0}    }}
 {0}    return list;
-{0}}}
-"""
+{0}}}"""
+
+CPP_MAP_TO_PYOBJECT_TRANSFORMATION = """[]({3} map) -> PyObject* {{
+{0}    PyObject* dict = PyDict_New();
+{0}    if(!dict) {{
+{0}        PyErr_SetString(PyExc_MemoryError, "Unable to allocate enough memory for dict elements.");
+{0}        return Py_None;
+{0}    }}
+{0}    for(auto& entry : map) {{
+{0}        PyObject* key = {1}(entry.first);
+{0}        if(!key) {{
+{0}            Py_DECREF(dict);
+{0}            PyErr_SetString(PyExc_MemoryError, "Unable to allocate enough memory for dict elements.");
+{0}            return Py_None;
+{0}        }}
+{0}        PyObject* val = {2}(entry.second);
+{0}        if(!val) {{
+{0}            Py_DECREF(key);
+{0}            Py_DECREF(dict);
+{0}            PyErr_SetString(PyExc_MemoryError, "Unable to allocate enough memory for dict elements.");
+{0}            return Py_None;
+{0}        }}
+{0}        PyDict_SetItem(dict, key, val);
+{0}    }}
+{0}    return dict;
+{0}}}"""
 
 """ The current date in ISO format. """
 TODAY = datetime.date.today().isoformat()
+
