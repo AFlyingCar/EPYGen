@@ -126,7 +126,7 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
     for p in params:
         # Generate casts to cpp types
         # ctor_str += "{0}({1})".format(p[0].raw, 'param' + str(pcount)) + ","
-        ctor_str += "{0}({1})".format(p[0].createCPPTransformation(), 'param' + str(pcount)) + ","
+        ctor_str += p[0].createCPPTransformation("", "(param" + str(pcount) + ")") + ","
 
     if is_virtual:
         ctor_str += "pyobj"
@@ -293,7 +293,8 @@ def createCPPVirtualFuncWrapper(func, orig_name):
     # Note: This is a temporary fix, but I just don't really know how to properly
     #  handle references yet. Fix ASAP as virtual functions that return references
     #  cannot be exposed.
-    rtype = func.rtype.cpp_type if func.rtype.is_reference else func.rtype.raw
+    # rtype = func.rtype.cpp_type if func.rtype.is_reference else func.rtype.raw
+    rtype = func.rtype.raw
 
     # We pass False for is_class so that no `self` parameter gets generated
     vfunc_str += ident + createCPPFunctionHeader(rtype, func.name, func, False, True, True)
@@ -308,7 +309,7 @@ def createCPPVirtualFuncWrapper(func, orig_name):
     vfunc_str += (',' if param_str and not param_str.endswith(',') else '') + "NULL);\n"
     # Return PyObject as CPP type here
     if str(func.rtype).strip() != "void":
-        vfunc_str += ident + "    " + func.rtype.createPyObjectTransformation("return ") + "({0});\n".format("result")
+        vfunc_str += ident + "    return std::move(" + func.rtype.createPyObjectTransformation("","({0})".format("result")) + ");\n"
         # vfunc_str += ident + "    return Epy::PyObjectToType<{0}>(result);\n".format(func.rtype.raw)
 
     vfunc_str += ident + "} else {\n"
