@@ -104,10 +104,10 @@ class Type(object):
 
         return var
 
-    def createCPPTransformation(self, prefix = ""):
+    def createCPPTransformation(self, prefix = "", suffix = ""):
         if self.becomes_pyobj:
-            return self.createPyObjectTransformation(prefix)
-        return self.raw
+            return self.createPyObjectTransformation(prefix, suffix)
+        return prefix + self.raw + suffix
 
     def createNull(self):
         if self.full_name == "std_string":
@@ -134,16 +134,16 @@ class Type(object):
         else:
             return var
 
-    def createPyObjectTransformation(self, prefix = ""):
+    def createPyObjectTransformation(self, prefix = "", suffix=""):
         transformation = ""
         failure = False
 
         if self.full_name == "std_string":
-            transformation = "{0}PyBytes_AsString".format(prefix)
+            transformation = "std::string({0}PyBytes_AsString{1})".format(prefix, suffix)
         elif self.full_name == "void": # Handle the case of a void type.
             return ""
         elif self.full_name in Constants.PRIMITIVES:
-            return "Py{0}_As{0}".format(Constants.PRIMITIVES[self.full_name].capitalize())
+            return "Py{0}_As{0}{1}".format(Constants.PRIMITIVES[self.full_name].capitalize(), suffix)
         else:
             failure = True
             transformation = "nullptr;static_assert(false, \"Invalid PyObject transformation type: {0}\");".format(self.raw)
