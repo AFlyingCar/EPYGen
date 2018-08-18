@@ -21,6 +21,8 @@ LIB_OUT=-L. -lTest
 EPYGEN=../../EpyGen.sh
 endif
 
+PYTHON=python3
+
 SOURCES=lib/Test.cpp lib/Test_wrap.cpp
 
 CXXSOURCES=$(SOURCES)
@@ -35,4 +37,7 @@ library: $(CXXSOURCES)
 
 epy: lib/Test.epy
 	$(EPYGEN) libTest.so lib/Test.epy
+
+run: | epy library
+	$(PYTHON) ./test.py
 

@@ -15,7 +15,7 @@ Hello::~Hello(){
     std::cout << "Destroying Hello" << std::endl;
 }
 
-std::string Hello::say() const {
+const std::string& Hello::say() const {
     return m_message;
 }
 
