@@ -21,6 +21,8 @@ LIB_OUT=-L. -lABS
 EPYGEN=../../EpyGen.sh
 endif
 
+PYTHON=python3
+
 SOURCES=ABS.cpp ABS_wrap.cpp
 
 CXXSOURCES=$(SOURCES)
@@ -34,4 +36,7 @@ library: $(CXXSOURCES)
 
 epy: ABS.epy
 	$(EPYGEN) libABS.so ABS.epy
+
+run: | epy library
+	$(PYTHON) ./test.py
 

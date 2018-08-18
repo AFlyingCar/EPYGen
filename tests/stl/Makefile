@@ -21,6 +21,8 @@ LIB_OUT=-L. -lSTL
 EPYGEN=../../EpyGen.sh
 endif
 
+PYTHON=python3
+
 SOURCES=STL.cpp STL_wrap.cpp
 
 CXXSOURCES=$(SOURCES)
@@ -34,4 +36,7 @@ library: $(CXXSOURCES)
 
 epy: STL.epy
 	$(EPYGEN) $(DLL_OUT) STL.epy
+
+run: | epy library
+	$(PYTHON) ./test.py
 
