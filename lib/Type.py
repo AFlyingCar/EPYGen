@@ -241,13 +241,10 @@ class Type(object):
             self.py_type = "object"
 
     def buildPyCType(self):
-        if self.py_type == "str" or self.py_type == "bytes":
-            self.py_c_type = "ctypes.c_char_p"
-        elif self.py_type == "list":
-            self.py_c_type = "ctypes.py_object" # ctype * array_count
-        elif self.py_type == "tuple":
-            self.py_c_type = "ctypes.py_object"
-        elif self.py_type == "dict":
+        if self.full_name.startswith("std_vector") or \
+             self.full_name.startswith("std_map") or \
+             self.full_name.startswith("std_tuple") or \
+             self.full_name == "std_string":
             self.py_c_type = "ctypes.py_object"
         elif self.full_name in BUILTINS:
             self.py_c_type = CPY_TYPE_MAP[self.full_name]
