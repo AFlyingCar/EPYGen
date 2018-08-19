@@ -28,6 +28,29 @@ STL_MAP = {
         "std::function": FUNCTION,
 }
 
+def cppTupleToPyObjectTransformation(tup, prefix = ""):
+    elements = ""
+
+    ELEM_ADD_CONSTANT = "{0}    PyTuple_SetItem(tuple, {1}, {2});\n"
+
+    i = 0
+    for t in tup.tparams:
+        var = "std::get<{0}>(tup)".format(i)
+        elements += ELEM_ADD_CONSTANT.format(prefix, i, t.createCTransformation(var, '',"({0})".format(var), True))
+        i += 1
+
+    transformation = """[]({3} tup) -> PyObject* {{
+{0}    PyObject* tuple = PyTuple_New({1});
+{0}    if(!tuple) {{
+{0}        PyErr_SetString(PyExc_MemoryError, "Unable to allocate enough memory for tuple elements.");
+{0}        return Py_None;
+{0}    }}
+{2}{0}
+{0}    return tuple;
+{0}}}""".format(prefix, len(tup.tparams), elements, tup.raw)
+
+    return transformation
+
 class Type(object):
     def __init__(self, raw, is_const, namespaces, type_name, tparams, fparams, is_ptr, is_ptr_const, is_function):
         self.raw = raw
@@ -96,11 +119,13 @@ class Type(object):
 
         return oparams
 
-    def createCTransformation(self, var, prefix = ""):
+    def createCTransformation(self, var, prefix = "", suffix = "", forceBP = False):
+        if self.full_name == "std_string":
+            suffix = "({0}.c_str())".format(var)
         if self.is_function:
             return "(({0}){1})".format(self.asCFunction(), var)
-        elif self.becomes_pyobj:
-            return self.createToPyObjectTransformation(var, prefix)# + "({0})".format(var)
+        elif self.becomes_pyobj or forceBP:
+            return self.createToPyObjectTransformation(prefix, suffix)
 
         return var
 
@@ -154,7 +179,7 @@ class Type(object):
         return transformation
 
     # TODO: We need to get rid of `var`
-    def createToPyObjectTransformation(self, var, prefix = ""):
+    def createToPyObjectTransformation(self, prefix = "", suffix = ""):
         transformation = ""
         failure = False
 
@@ -162,22 +187,22 @@ class Type(object):
             if len(self.tparams) != 1:
                 print("Template Error: STL Type `std::vector` must have 1 template parameter.");
             transformation = Constants.CPP_VECTOR_TO_PYOBJECT_TRANSFORMATION.format(
-                    prefix, self.tparams[0].createToPyObjectTransformation(''), self.raw) + "({0})".format(var)
+                    prefix, self.tparams[0].createToPyObjectTransformation(''), self.raw) + suffix
         elif self.full_name == "std_string":
-            transformation = "PyBytes_FromString({0}.c_str())".format(var)
+            transformation = prefix + "PyBytes_FromString" + suffix
         elif self.full_name.startswith("std_map"):
             if len(self.tparams) != 2:
                 print("Template Error: STL Type `std::map` must have 2 template parameters.")
             transformation = Constants.CPP_MAP_TO_PYOBJECT_TRANSFORMATION.format(
                     prefix, self.tparams[0].createToPyObjectTransformation(''),
-                    self.tparams[1].createToPyObjectTransformation(''), self.raw) + "({0})".format(var)
+                    self.tparams[1].createToPyObjectTransformation(''), self.raw) + suffix
         elif self.full_name.startswith("std_tuple"):
             # No need to check for tparam count here, as there are N params.
-            transformation = "nullptr"
+            transformation = cppTupleToPyObjectTransformation(self, prefix) + suffix
         elif self.full_name == "void": # Handle the case of a void type.
             return "Py_None"
         elif self.full_name in Constants.PRIMITIVES:
-            transformation = Constants.PRIMITIVE_CONVERSION_FUNCTIONS[self.full_name]
+            transformation = prefix + Constants.PRIMITIVE_CONVERSION_FUNCTIONS[self.full_name] + suffix
         else:
             failure = True
             transformation = "nullptr;static_assert(false, \"Invalid PyObject transformation type: {0}\");".format(self.raw)
