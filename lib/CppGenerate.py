@@ -252,15 +252,16 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
 
     pcount = 0
     for p in function.param_list:
+        var = 'param{0}'.format(pcount)
         # Generate casts to cpp types
-        call += "{0}({1})".format(p[0].raw, p[0].createCTransformation('param' + str(pcount))) + ","
+        call += "{0}({1})".format(p[0].raw, p[0].createCTransformation(var, '', var)) + ","
 
     if call.endswith(','):
         call = call[:-1] # Remove the trailing ,
     call += ")"
 
     if has_ret_val:
-        call = cres_type.createCTransformation(call, '    ' * (ident + 2))
+        call = cres_type.createCTransformation(call, '    ' * (ident + 2), '({0})'.format(call))
 
     func_string += call + ";\n"
 
