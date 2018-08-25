@@ -24,8 +24,8 @@ std::string& EpyGen::Util::rstrip_ip(std::string& s) {
 }
 
 std::string& EpyGen::Util::strip_ip(std::string& s) { 
-    rstrip(s);
-    lstrip(s);
+    rstrip_ip(s);
+    lstrip_ip(s);
     return s;
 }
 
