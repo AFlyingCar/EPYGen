@@ -2,15 +2,15 @@
 SOURCES=$(wildcard src/*.cpp)
 INCLUDES=-Iinc/
 OBJECTS=$(patsubst src/%.cpp,build/%.o,$(SOURCES))
-CFLAGS=-Wall -Wextra -Werror -std=c++1z
+CFLAGS=-Wall -Wextra -Werror -std=c++1z -g
 
 CXX=clang++
 OUT=EpyGen
 
-all: $(OBJECTS)
+all: $(OBJECTS) Makefile
 	$(CXX) $(CFLAGS) $(OBJECTS) -o $(OUT)
 
-build/%.o: src/%.cpp
+build/%.o: src/%.cpp Makefile
 	$(CXX) $(CFLAGS) $(INCLUDES) -c $< -o $@
 
 clean:
