@@ -1,6 +1,8 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <sstream>
 
 #include "Epy.h"
 #include "Util.h"
@@ -10,10 +12,24 @@
 #define ENABLE_DEBUG true
 #endif
 
+void help() {
+    std::cout << "EpyGen LIB_NAME [OPTIONS...] FILES...\n" << std::endl;
+
+    std::cout << "Options:" << std::endl;
+    std::cout << "    -h,--help    Displays this message and exits." << std::endl;
+    std::cout << "    -d,--debug   Enables debug printing." << std::endl;
+}
+
 int parse(const std::string& filename, const std::string& lib_obj_name,
           std::vector<EpyGen::Epy>& epys)
 {
-    std::string contents; // TODO: Fill this
+    std::ifstream file(filename);
+    if(!file) {
+        std::cerr << "ERROR: Failed to open file `" << filename << std::endl;
+        return 1;
+    }
+    std::stringstream contents;
+    contents << file.rdbuf();
 
     std::string lib_obj_name_fixed = lib_obj_name;
     for(size_t loc = lib_obj_name_fixed.find('\\'); loc != std::string::npos;
@@ -23,7 +39,7 @@ int parse(const std::string& filename, const std::string& lib_obj_name,
     }
 
     // Parse the Epy file
-    epys.push_back(EpyGen::Epy(filename, EpyGen::Util::strip(contents),
+    epys.push_back(EpyGen::Epy(filename, EpyGen::Util::strip(contents.str()),
                                lib_obj_name_fixed));
     return 0;
 }
@@ -78,22 +94,43 @@ int generate(const EpyGen::Epy& epy) {
 }
 
 int main(int argc, char** argv) {
-    if(argc < 3) {
+    if(argc < 2) {
         std::cerr << "Invalid number of arguments." << std::endl;
         return 1;
     }
 
     std::string lib_obj_name = argv[1];
+    std::vector<std::string> filenames;
     std::vector<EpyGen::Epy> epy_list;
 
-    for(int i = 2; i < argc; ++i) {
+    int i = argv[1][0] == '-' ? 1 : 2;
+
+    std::string arg;
+    for(; i < argc; ++i) {
+        arg = argv[i];
+
+        if(arg == "-h" || arg == "--help") {
+            help();
+            return 0;
+        } else if(arg == "-d" || arg == "--debug") {
+            // TODO: Set rule ENABLE_DEBUG
+        } else {
+            filenames.push_back(arg);
+        }
+    }
+
+    for(auto& filename : filenames) {
         try {
-            parse(argv[i], lib_obj_name, epy_list);
+            parse(filename, lib_obj_name, epy_list);
         } catch(...) {
-            std::cerr << "A fatal error occurred for generate(" << argv[i] << ","
-                      << lib_obj_name << ")" << std::endl;
+            std::cerr << "A fatal error occurred for generate(" << filename
+                      << ", " << lib_obj_name << ")" << std::endl;
             return 1;
         }
+    }
+
+    for(auto& epy : epy_list) {
+        generate(epy);
     }
 
     return 0;
