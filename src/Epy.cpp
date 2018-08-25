@@ -12,6 +12,7 @@
 #include "Type.h"
 #include "Function.h"
 #include "Literal.h"
+#include "Types.h"
 
 #define ENABLE_DEBUG true
 
@@ -90,7 +91,7 @@ void EpyGen::Epy::parse(const std::string& contents) {
 
     for(size_t i = 0; i < contents.size(); ++i) {
         char c = contents[i];
-        
+
         if(c == ';' && !(state.in_literalpy || state.in_literalcpp)) {
             parseStatement(Util::strip(statement), state);
             statement = "";
@@ -99,10 +100,13 @@ void EpyGen::Epy::parse(const std::string& contents) {
             std::string ppstatement = "";
 
             // Ignore non-linebreaking whitespace
-            while(contents[i] == ' ' || contents[i] == '\t')
+            while(i < contents.size() && (contents[i] == ' ' ||
+                                          contents[i] == '\t'))
                 ++i;
-            while(contents[i] != ' ' || contents[i] != '\n' ||
-                  contents[i] != '\r' || contents[i] != '\t')
+            while(i < contents.size() && !(contents[i] == ' '  ||
+                                           contents[i] == '\n' ||
+                                           contents[i] == '\r' ||
+                                           contents[i] == '\t'))
             {
                 ppstatement += contents[i];
                 ++i;
@@ -130,19 +134,22 @@ void EpyGen::Epy::parse(const std::string& contents) {
             } else if(ppstatement == "include") {
                 // TODO
             } else {
-                std::cerr << "Unrecognized ppstatement " << ppstatement << std::endl;
+                std::cerr << "Unrecognized ppstatement `" << ppstatement << "`"
+                          << std::endl;
                 return;
             }
         } else {
             if(c == '/' && !(state.in_literalpy || state.in_literalcpp)) {
                 ++i;
                 if(contents[i] == '/') {
-                    while(contents[i] != '\n') ++i;
+                    while(i < contents.size() && contents[i] != '\n') ++i;
                     continue;
                 }  else if(contents[i] == '*') {
                     size_t j = i - 1;
 
-                    while(!(contents[j] == '*' && contents[i] == '/')) {
+                    while(i < contents.size() && !(contents[j] == '*' &&
+                                                   contents[i] == '/'))
+                    {
                         ++i;
                         ++j;
                     }
@@ -241,7 +248,8 @@ EpyGen::ParameterList EpyGen::Epy::parseTParams(const std::string& param_str_) {
     if(ENABLE_DEBUG)
         std::cout << "parsing tparam list" << std::endl;
 
-    param_str = param_str.substr(1, param_str.size() -1);
+    // Make sure we chop off the closing parenthesis
+    param_str = param_str.substr(1, param_str.size() - 2);
 
     size_t pcount = 0;
     std::string ptype = "";
@@ -308,7 +316,8 @@ std::tuple<EpyGen::ParameterList, std::string> EpyGen::Epy::parseParamList(const
     if(ENABLE_DEBUG)
         std::cout << "parsing param list" << std::endl;
 
-    param_str = param_str.substr(1, param_str.size() - 1);
+    // Chop off the closing parenthesis before we do anything else
+    param_str = param_str.substr(1, param_str.size() - 2);
 
     ParameterList params;
 
@@ -325,11 +334,11 @@ std::tuple<EpyGen::ParameterList, std::string> EpyGen::Epy::parseParamList(const
                                              defaulted));
             ptype = "";
             defaulted = false;
-            ++i; // skip over the comma
+            // ++i; // skip over the comma
             continue;
         } else if(c == '=') {
             defaulted = true;
-            ++i;
+            // ++i;
             continue;
         }
 
@@ -384,6 +393,7 @@ void EpyGen::Epy::parseCtorStatement(const std::string& statement, State& state)
     if(sobj == nullptr) {
         std::cerr << "Internal Error: sobj is not a Class" << std::endl;
         state.error = true;
+        return;
     }
 
     std::string rest = Util::lstrip(statement.substr(4));
@@ -419,6 +429,7 @@ void EpyGen::Epy::parseDtorStatement(const std::string&, State& state)
     if(sobj == nullptr) {
         std::cerr << "Internal Error: sobj is not Class";
         state.error = true;
+        return;
     }
 
     sobj->setHasDTor(true);
@@ -444,8 +455,12 @@ void EpyGen::Epy::parseFunc(const std::string& statement, State& state) {
     std::string func = Util::lstrip(statement.substr(4));
     
     size_t ret_sep = func.find_last_of("->");
-    std::string rtype = Util::lstrip(func.substr(ret_sep));
-    func = Util::rstrip(func.substr(0, ret_sep));
+    // substring from 1 after ret_sep, since `->` is 2 chars
+    std::string rtype = Util::lstrip(func.substr(ret_sep + 1));
+    func = Util::rstrip(func.substr(0, ret_sep - 1));
+
+    if(ENABLE_DEBUG)
+        std::cout << "==> " << func << std::endl;
 
     bool is_const = false;
     bool is_static = false;
@@ -497,23 +512,22 @@ void EpyGen::Epy::parseFunc(const std::string& statement, State& state) {
 
     size_t paren_loc = func.find('(');
     std::string func_and_tparams = func.substr(0, paren_loc);
-    std::string param_str = func.substr(paren_loc);
-    std::string tparams;
+    std::string param_str = Util::lstrip(func.substr(paren_loc));
 
+    std::string tparams;
     size_t tparam_start_loc = func_and_tparams.find('<');
     if(tparam_start_loc != std::string::npos) {
         func = func_and_tparams.substr(0, tparam_start_loc);
-        tparams = '<' + func_and_tparams.substr(tparam_start_loc);
+        tparams = func_and_tparams.substr(tparam_start_loc);
     } else {
         func = func_and_tparams;
         tparams = "<>";
     }
-    param_str = '(' + Util::lstrip(param_str);
 
     if(ENABLE_DEBUG)
         std::cout << "Parsing function `" << func << "` with rtype `" << rtype
                   << "`, parameters " << param_str << " tparams " << tparams
-                  << "and modifiers" << (is_const ? "const " : "")
+                  << " and modifiers " << (is_const ? "const " : "")
                   << (is_static ? "static " : "")
                   << (is_virtual ? "virtual" : "")
                   << (is_abstract ? "abstract" : "") << std::endl;
@@ -670,7 +684,23 @@ void EpyGen::Epy::parseOperator(const std::string& statement, State& state) {
     }
 }
 
-void EpyGen::Epy::parseClassStatement(const std::string&, State&) {
+void EpyGen::Epy::parseClassStatement(const std::string& statement,
+                                      State& state)
+{
+    state.stype = Section::Type::CLASS_TYPE;
+
+    // Parse name
+    std::string left = Util::lstrip(statement.substr(5));
+    size_t tstart = left.find("<");
+    ParameterList tparams;
+    if(tstart != std::string::npos) {
+        tparams = parseTParams(left.substr(tstart));
+        state.sname = left.substr(0, tstart);
+    } else {
+        state.sname = left;
+    }
+
+    state.sobj = new Class(state.sname, tparams);
 }
 
 void EpyGen::Epy::parseEnumStatement(const std::string&, State&) {
