@@ -24,6 +24,10 @@ const std::string& EpyGen::Section::getName() const {
     return m_name;
 }
 
+const std::string& EpyGen::Section::getFmtName() const {
+    return m_fmt_name;
+}
+
 std::string EpyGen::Section::str() const {
     return m_name;
 }

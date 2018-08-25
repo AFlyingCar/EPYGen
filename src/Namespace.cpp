@@ -5,7 +5,7 @@ EpyGen::Namespace::Namespace(const std::string& name): Section(name),
                                                        m_functions()
 { }
 
-std::vector<EpyGen::Function*>& EpyGen::Namespace::getFunctions() {
+const std::vector<EpyGen::Function*>& EpyGen::Namespace::getFunctions() const {
     return m_functions;
 }
 
