@@ -441,14 +441,25 @@ class Epy(object):
             return state
 
         # Generate Function object and append to sobj
-        state["sobj"].functions.append(Function(func, Type.parseType(rtype), param_list,
-                                                tparam_list, const, static,
-                                                virtual, abstract, throws, state["sobj"]))
+        if not func in state["sobj"].functions:
+            state["sobj"].functions[func] = []
+        state["sobj"].functions[func].append(Function(func,
+                                                      Type.parseType(rtype),
+                                                      param_list, tparam_list,
+                                                      const, static, virtual,
+                                                      abstract, throws,
+                                                      state["sobj"]))
         if virtual:
-            state["sobj"].virtual_funcs.append(Function(func, Type.parseType(rtype), param_list,
-                                                        tparam_list, const,
-                                                        static, virtual, abstract,
-                                                        throws, state["sobj"]))
+            if not func in state["sobj"].virtual_funcs:
+                state["sobj"].virtual_funcs[func] = []
+            state["sobj"].virtual_funcs[func].append(Function(func,
+                                                              Type.parseType(rtype),
+                                                              param_list,
+                                                              tparam_list,
+                                                              const, static,
+                                                              virtual, abstract,
+                                                              throws,
+                                                              state["sobj"]))
         if abstract:
             state["sobj"].abstract = True
 
@@ -529,11 +540,14 @@ class Epy(object):
 
         throws = self.parseThrowsStr(throws_str)
 
+        if not func in state["sobj"].functions:
+            state["sobj"].functions[func] = []
         # Generate Function object and append to sobj
-        state["sobj"].functions.append(Operator(func, Type.parseType(rtype),
-                                                param_list, tparam_list, const,
-                                                static, virtual, abstract, throws,
-                                                state["sobj"]))
+        state["sobj"].functions[func].append(Operator(func, Type.parseType(rtype),
+                                                      param_list, tparam_list,
+                                                      const, static, virtual,
+                                                      abstract, throws,
+                                                      state["sobj"]))
 
         if abstract:
             state["sobj"].abstract = True

@@ -9,6 +9,9 @@ from Constants import ENABLE_DEBUG
 def createPyTypeCheck(param_name, type, ident = ""):
     return Constants.PY_TYPE_CHECK.format(ident, param_name, type.py_type, type.createPyTransformation(param_name))
 
+def createPyTypeList(param_list):
+    return "[{0}]".format(','.join([p[0].py_type for p in param_list]))
+
 def createPyABCFunction(name, function, starting_ident = 1):
     if ENABLE_DEBUG:
         print("Creating Abstract Base Class function")
@@ -21,7 +24,7 @@ def createPyABCFunction(name, function, starting_ident = 1):
 
     return f_str
 
-def createPyFunction(cname, name, function, epy, is_class = False, starting_ident = 0):
+def createPyFunction(cname, name, function, epy, count = 0, is_class = False, starting_ident = 0):
     if ENABLE_DEBUG:
         print("Creating function " + function.name)
     func_str = ""
@@ -79,6 +82,58 @@ def createPyFunction(cname, name, function, epy, is_class = False, starting_iden
         func_str += ident + "return result\n"
 
     return func_str
+
+def createPyOverloads(name, overloads, nspace, epy, is_class = False, starting_ident = 0):
+    # If there is only one function, then just do it the old fashioned way.
+    if len(overloads) == 1:
+        full_name = nspace.name_fmt + '_' + name + '1'
+        return createPyFunction(full_name, name, overloads[0], epy, 1, False)
+    else:
+        if ENABLE_DEBUG:
+            print("Creating function " + name)
+        func_str = ""
+
+        ident = ('    ' * starting_ident)
+
+        params = ['*args']
+        if is_class:
+            if function.static:
+                func_str += ident + "@classmethod\n"
+                params = ["cls"] + params
+            else:
+                params = ["self"] + params
+
+        func_str += (ident + "def {0}(" + ', '.join(params) + '):\n').format(name)
+
+        starting_ident += 1
+        ident += '    ' # Now that we are out of the function header, increase the indentation by one
+
+        if is_class:
+            func_str += "if self.cobj:\n"
+
+            ident += "    "
+            starting_ident += 1
+
+        # TODO: Add support for default parameters
+        func_str += ident + "arg_tlist = [type(a) for a in args]\n" + ident
+        ocount = 0
+        for o in overloads:
+            ocount += 1
+            full_name = nspace.name_fmt + '_' + name + str(ocount)
+            func_str += "if arg_tlist == {0} and {1}:\n".format(createPyTypeList(o.param_list), full_name)
+            func_str += ident + "    result = {0}(".format(full_name)
+
+            param_str = ', '.join((["ctypes.c_void_p(self.cobj)"] if is_class and not o.static else []) + ["{0}({1})".format(o.param_list[i][0].py_c_type, 'args[{0}]'.format(i)) for i in range(len(o.param_list))])
+
+            func_str += param_str + ')\n'
+            if o.rtype.raw != "void":
+                func_str += ident + "    return result\n"
+            func_str += ident + "el"
+        func_str += "se:\n"
+        func_str += ident + "    raise ValueError(\"No such overload found matching [{0}]\".format(', '.join([t.__name__ for t in arg_tlist])))\n"
+
+        return func_str
+
 
 def createPyFuncLoader(fname, rtype, params, lib_name, ident = ""):
     if ENABLE_DEBUG:
@@ -149,16 +204,20 @@ def createPyNamespace(nspace, epy):
     nspace_string = ""
 
     # name -> countx
-    functions_found = {f.name: 0 for f in nspace.functions}
+    # functions_found = {f.name: 0 for f in nspace.functions}
 
-    for f in nspace.functions:
-        if f.abstract:
-            nspace_string += createPyABCFunction(f.name, f)
-        else:
-            full_name = nspace.name_fmt + '_' + f.name + str(functions_found[f.name])
-            nspace_string += createPyFunction(full_name, f.name + str(functions_found[f.name]),
-                                              f, epy, False)
-        functions_found[f.name] += 1
+    for name in nspace.functions:
+        f_list = nspace.functions[name]
+        # Just in case, skip over 0-length function lists
+        if(len(f_list) != 0):
+            nspace_string += createPyOverloads(name, f_list, nspace, epy)
+    #     fcount = 0
+    #     for f in f_list:
+    #         fcount += 1
+    #         full_name = nspace.name_fmt + '_' + name + str(fcount)
+    #         nspace_string += createPyFunction(full_name, name, f, epy, fcount,
+    #                                           False)
+        # functions_found[f.name] += 1
 
     return nspace_string
 
@@ -185,21 +244,27 @@ def createPyClass(klass, epy):
         class_string += Constants.PY_DEL_FUNC.format(epy.lib_name_fmt, klass.name_fmt)
 
     # name -> countx
-    functions_found = {f.name: 0 for f in klass.functions}
+    # functions_found = {f.name: 0 for f in klass.functions}
 
-    for f in klass.functions:
-        if f.abstract:
-            class_string += createPyABCFunction(f.name, f)
-        else:
-            full_name = klass.name_fmt + '_' + f.name + str(functions_found[f.name])
-            class_string += createPyFunction(full_name, f.name + str(functions_found[f.name]),
-                                             f, epy, True, 1)
-        functions_found[f.name] += 1
+    for name in klass.functions:
+        f_list = klass.functions[name]
+        fcount = 0
+        for f in f_list:
+            fcount += 1
+            if f.abstract:
+                class_string += createPyABCFunction(name, f, fcount)
+            else:
+                full_name = klass.name_fmt + '_' + name + str(fcount)
+                class_string += createPyFunction(full_name, name, f, epy,
+                                                 fcount, True, 1)
+        # functions_found[f.name] += 1
 
     return class_string
 
 def generatePython(epy):
-    python = Constants.PYTHON_HEADER.format(Constants.VERSION, Constants.TODAY, epy.lib_name_fmt, epy.lib, epy.libIndirection())
+    python = Constants.PYTHON_HEADER.format(Constants.VERSION, Constants.TODAY,
+                                            epy.lib_name_fmt, epy.lib,
+                                            epy.libIndirection())
 
     imported_abc = False
 
@@ -207,11 +272,18 @@ def generatePython(epy):
         is_class = type(section) is Section.Class
         # Namespaces and classes both use the same code for their header
         if issubclass(type(section), Section.Namespace):
-            functions_found = {f.name: 0 for f in section.functions}
-            for f in section.functions:
-                if not f.abstract:
-                    full_name = section.name_fmt + '_' + f.name + str(functions_found[f.name])
-                    python += createPyFuncLoader(full_name, f.rtype.py_c_type, ([("ctypes.c_void_p",)] if is_class and not f.static else []) + f.param_list, epy.lib_name_fmt)
+            # functions_found = {f.name: 0 for f in section.functions}
+            for name in section.functions:
+                f_list = section.functions[name]
+                fcount = 0
+                for f in f_list:
+                    fcount += 1
+                    if not f.abstract:
+                        full_name = section.name_fmt + '_' + name + str(fcount)
+                        python += createPyFuncLoader(full_name,
+                                                     f.rtype.py_c_type,
+                                                     ([("ctypes.c_void_p",)] if is_class and not f.static else []) + f.param_list,
+                                                     epy.lib_name_fmt)
 
         if type(section) is Section.Class:
             # If this is the first abstract class, add an import for abc

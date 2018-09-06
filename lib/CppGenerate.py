@@ -125,7 +125,6 @@ def createCPPCtor(klass_name, params, throws, epy, referenced_throws = [], ctor_
     pcount = 0
     for p in params:
         # Generate casts to cpp types
-        # ctor_str += "{0}({1})".format(p[0].raw, 'param' + str(pcount)) + ","
         ctor_str += p[0].createCPPTransformation("", "(param" + str(pcount) + ")") + ","
 
     if is_virtual:
@@ -270,7 +269,8 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
 
     func_string += ("    " * (ident + 1)) + "} catch (...) {\n"
     func_string += ("    " * (ident + 2)) + "PyErr_SetString(PyExc_RuntimeError, \"An unspecified exception has occurred in {0}\");\n".format(name)
-    func_string += ("    " * (ident + 2)) + "return nullptr;\n"
+    if has_ret_val:
+        func_string += ("    " * (ident + 2)) + "return {0};\n".format(function.rtype.createNull())
     func_string += ("    " * (ident + 1)) + "}\n"
 
     func_string += ("    " * ident) + "}\n"
@@ -374,10 +374,12 @@ def createCPPClassWrapper(orig_name, wrap_name, klass):
         class_string += createCPPClassWrapperCtor(orig_name, wrap_name, c)
     class_string += "        ~{0}() {{ }}\n".format(wrap_name)
 
-    for f in klass.virtual_funcs:
+    for name in klass.virtual_funcs:
         # Generate a function wrapper for every virtual function which handles
         #  whether to use the Python function or the C++ one
-        class_string += createCPPVirtualFuncWrapper(f, orig_name)
+        f_list = klass.virtual_funcs[name]
+        for f in f_list:
+            class_string += createCPPVirtualFuncWrapper(f, orig_name)
 
     class_string += "    private:\n"
     class_string += "       PyObject* m_pyobj;\n"
@@ -405,7 +407,6 @@ def createCPPClass(klass, epy, reffed_throws):
     if is_virtual:
         wrapped_name = "_pywrapped_" + class_name
         class_string += createCPPClassWrapper(class_name, wrapped_name, klass)
-        # class_name = wrapped_name
 
     class_string += "extern \"C\" {\n"
 
@@ -417,11 +418,14 @@ def createCPPClass(klass, epy, reffed_throws):
     if klass.dtor:
         class_string += Constants.CPP_DEL_FUNC.format("__declspec(dllexport)" if Constants.IS_WINDOWS else "", klass.name_fmt, klass.name)
 
-    functions_found = {f.name: 0 for f in klass.functions}
-    for f in klass.functions:
-        if not f.abstract:
-            full_name = klass.name_fmt + '_' + f.name + str(functions_found[f.name])
-            class_string += createCPPFunction(full_name, f.name, f, epy, reffed_throws, True, 1)
+    for name in klass.functions:
+        fcount = 0
+        f_list = klass.functions[name]
+        for f in f_list:
+            fcount += 1
+            if not f.abstract:
+                full_name = klass.name_fmt + '_' + name + str(fcount)
+                class_string += createCPPFunction(full_name, name, f, epy, reffed_throws, True, 1)
 
     class_string += "}\n"
 
@@ -435,10 +439,13 @@ def createCPPNamespace(nspace, epy, reffed_throws):
 
     nspace_string += "extern \"C\" {\n"
 
-    functions_found = {f.name: 0 for f in nspace.functions}
-    for f in nspace.functions:
-        full_name = nspace.name_fmt + '_' + f.name + str(functions_found[f.name])
-        nspace_string += createCPPFunction(full_name, f.name, f, epy, reffed_throws, False, ident)
+    for name in nspace.functions:
+        f_list = nspace.functions[name]
+        fcount = 0
+        for f in f_list:
+            fcount += 1
+            full_name = nspace.name_fmt + '_' + name + str(fcount)
+            nspace_string += createCPPFunction(full_name, name, f, epy, reffed_throws, False, ident)
 
     nspace_string += "}"
 

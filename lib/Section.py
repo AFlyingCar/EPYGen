@@ -12,7 +12,7 @@ class Section(object):
 class Namespace(Section):
     def __init__(self, name):
         super().__init__(name)
-        self.functions = []
+        self.functions = {}
 
     def __str__(self):
         s = "Namespace `" + super().__str__() + "` "
@@ -28,7 +28,7 @@ class Class(Namespace):
 
         # Tuple: (param_list, tparam_list, throws, Class)
         self.ctors = []
-        self.virtual_funcs = []
+        self.virtual_funcs = {}
         self.abstract = False
 
         # Nothing special needs to be done with the destructor, we just need to know that we have one
