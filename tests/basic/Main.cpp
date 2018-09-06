@@ -3,7 +3,7 @@
 
 #include "Python.h"
 
-#include "lib/Test.h"
+#include "Test.h"
 
 int main() {
     std::cout << "Hello, World!" << std::endl;

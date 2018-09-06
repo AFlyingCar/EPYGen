@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-import lib.Test
+import Test
 
 print("a.py")
 
-myHello = lib.Test.Hello("foobar")
+myHello = Test.Hello("foobar")
 
 print(myHello.say())
 
@@ -20,9 +20,9 @@ try:
 except Exception as e:
     print("Caught an exception from myHello.throwTest:", e)
 
-lib.Test.Hello.sayHello()
+Test.Hello.sayHello()
 
-myHello = lib.Test.Hello("General Kenobi!")
+myHello = Test.Hello("General Kenobi!")
 
 print(myHello.say())
 
