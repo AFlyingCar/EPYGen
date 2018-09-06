@@ -135,10 +135,14 @@ class Type(object):
         return prefix + self.raw + suffix
 
     def createNull(self):
-        if self.full_name == "std_string":
+        if self.becomes_pyobj:
+            return "Py_None"
+        elif self.full_name == "std_string":
             return '""'
         elif self.is_function:
             return "[]({0}) -> {1} {{ return {2}; }}".format(','.join([p.c_type for p in self.fparams]), self.c_type, "0")
+        else:
+            return "0"
 
     def createPyTransformation(self, var):
         if self.py_type == "bytes":
