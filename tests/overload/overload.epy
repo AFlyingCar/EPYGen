@@ -1,0 +1,16 @@
+STL;
+
+start;
+namespace;
+
+@cpp
+#include "overload.h"
+@
+
+func foo() -> int;
+func foo(int, float) -> void;
+func foo(int, float, int, double) -> float;
+func foo(std::function<int()>) -> int;
+
+end;
+
