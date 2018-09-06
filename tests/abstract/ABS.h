@@ -5,7 +5,7 @@
 
 #include "API.h"
 
-API class ABS {
+class API ABS {
     public:
         ABS();
         virtual ~ABS();
