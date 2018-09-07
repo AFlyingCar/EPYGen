@@ -407,13 +407,19 @@ def createCPPClass(klass, epy, reffed_throws):
     if is_virtual:
         wrapped_name = "_pywrapped_" + class_name
         class_string += createCPPClassWrapper(class_name, wrapped_name, klass)
+    else:
+        wrapped_name = class_name
 
     class_string += "extern \"C\" {\n"
 
-    ccount = 0
-    for ctor in klass.ctors:
-        class_string += createCPPCtor(class_name, ctor[0], ctor[2], epy, reffed_throws, ccount, is_virtual)
-        ccount += 1
+    # We have to make sure we generate a simple constructor just for allocation
+    if len(klass.ctors) == 0:
+        class_string += CPP_DEFAULT_CTOR.format("    ", class_name, wrapped_name)
+    else:
+        ccount = 0
+        for ctor in klass.ctors:
+            ccount += 1
+            class_string += createCPPCtor(class_name, ctor[0], ctor[2], epy, reffed_throws, ccount, is_virtual)
 
     if klass.dtor:
         class_string += Constants.CPP_DEL_FUNC.format("__declspec(dllexport)" if Constants.IS_WINDOWS else "", klass.name_fmt, klass.name)

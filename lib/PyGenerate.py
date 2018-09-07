@@ -44,7 +44,6 @@ def createPyFunction(cname, name, function, epy, count = 0, is_class = False, st
     starting_ident += 1
     ident += '    ' # Now that we are out of the function header, increase the indentation by one
 
-    # func_str += ident + "global {0}\n".format(cname)
     func_str += ident + "if "
 
     if is_class:
@@ -63,7 +62,7 @@ def createPyFunction(cname, name, function, epy, count = 0, is_class = False, st
         func_str += createPyTypeCheck('param' + str(i), p[0], ident)
         i += 1
 
-    func_str += ident + "result = {0}(".format(cname)
+    func_str += ident + "{0}{1}(".format("result = " if function.rtype.raw else "", cname)
 
     if is_class:
         params = params[1:] # Remove cls/self as we no longer need it and don't want
@@ -114,14 +113,13 @@ def createPyOverloads(name, overloads, nspace, epy, is_class = False, starting_i
             ident += "    "
             starting_ident += 1
 
-        # TODO: Add support for default parameters
         func_str += ident + "arg_tlist = [type(a) for a in args]\n" + ident
         ocount = 0
         for o in overloads:
             ocount += 1
             full_name = nspace.name_fmt + '_' + name + str(ocount)
             func_str += "if arg_tlist == {0} and {1}:\n".format(createPyTypeList(o.param_list), full_name)
-            func_str += ident + "    result = {0}(".format(full_name)
+            func_str += ident + "    {0}{1}(".format("result = " if o.rtype.raw else "", full_name)
 
             param_str = ', '.join((["ctypes.c_void_p(self.cobj)"] if is_class and not o.static else []) + ["{0}({1})".format(o.param_list[i][0].py_c_type, 'args[{0}]'.format(i)) for i in range(len(o.param_list))])
 
@@ -134,7 +132,6 @@ def createPyOverloads(name, overloads, nspace, epy, is_class = False, starting_i
 
         return func_str
 
-
 def createPyFuncLoader(fname, rtype, params, lib_name, ident = ""):
     if ENABLE_DEBUG:
         print(fname,'->',rtype)
@@ -143,81 +140,44 @@ def createPyFuncLoader(fname, rtype, params, lib_name, ident = ""):
                                  ','.join([p[0] if type(p[0]) == str else p[0].py_c_type for p in params]))
 
 def createPyCtor(ctor_list, klass, epy):
-    # Do not generate a constructor if none are defined
+    # We have to make sure that we generate a default constructor so we have a
+    #  self.cobj object in the generated class.
     if len(ctor_list) == 0:
-        return ""
+        return "    def __init__(self):\n        self.cobj = {0}()\n".format(ctor_name)
 
-    params = ["self"]
-    ctor = "    def __init__("
-
-    # Generate parameter listing
-
-    min_params = min([len(i[0]) for i in ctor_list])
-    max_params = max([len(i[0]) for i in ctor_list])
-
-    for i in range(min_params):
-        params.append("param" + str(i))
-
-    for i in range(max_params - min_params):
-        params.append("param" + str(i) + " = None")
-
-    ctor += ", ".join(params) + "):\n"
+    ctor_str = "    def __init__(self, *args):\n"
 
     ident = "    " * 2
 
-    # Generate Create calls.
-    ctor_name = "_pywrapped_{0}_Create".format(klass.name)
+    ctor_str += ident + "arg_tlist = [type(a) for a in args]\n" + ident
 
-    ctor += ident + "if " + ctor_name + ":\n"
-    ident += "    "
+    ccount = 0
+    for ctor in ctor_list:
+        ccount += 1
+        ctor_name = "_pywrapped_{0}_Create{1}".format(klass.name, ccount)
 
-    # TODO: Add support for default parameters
-    i = 0
-    for p in ctor_list[0][0]:
-        ctor += createPyTypeCheck('param' + str(i), p[0], ident)
-        i += 1
-
-    ctor += ident + "self.cobj = {0}(".format(ctor_name)
-
-    # Skip the self parameter
-    i = 0
-    for p in params[1:]:
-        ctor += "{0}({1}), ".format(ctor_list[0][0][i][0].py_c_type, p.split(' ')[0])
-        # ctor += p.split(' ')[0] + ', '
-        i += 1
-
-    if len(klass.virtual_funcs) > 0:
-        ctor += " self"
-
-    ctor = ctor.rstrip()
-    if ctor.endswith(','):
-        ctor = ctor[:-1]
-    ctor += ")\n"
+        ctor_str += "if arg_tlist == [{0}] and {1}:\n".format(", ".join([p[0].py_type for p in ctor[0]]), ctor_name)
+        i = 0
+        for p in ctor[0]:
+            ctor_str += ident + "    param{0} = args[{1}]\n".format(i + 1, i)
+            i += 1
+        ctor_str += ident + "    self.cobj = {0}({1})\n".format(ctor_name, ", ".join(["param" + str(i + 1) for i in range(len(ctor[0]))] + ["self"] if len(klass.virtual_funcs) > 0 else []))
+        ctor_str += ident + "el"
 
     ident = "    " * 2
-    ctor += ident + "else:\n"
-    ctor += ident + "    self.cobj = None"
+    ctor_str += "se:\n"
+    ctor_str += ident + "    self.cobj = None"
 
-    return ctor
+    return ctor_str
 
 def createPyNamespace(nspace, epy):
     nspace_string = ""
-
-    # name -> countx
-    # functions_found = {f.name: 0 for f in nspace.functions}
 
     for name in nspace.functions:
         f_list = nspace.functions[name]
         # Just in case, skip over 0-length function lists
         if(len(f_list) != 0):
             nspace_string += createPyOverloads(name, f_list, nspace, epy)
-    #     fcount = 0
-    #     for f in f_list:
-    #         fcount += 1
-    #         full_name = nspace.name_fmt + '_' + name + str(fcount)
-    #         nspace_string += createPyFunction(full_name, name, f, epy, fcount,
-    #                                           False)
-        # functions_found[f.name] += 1
 
     return nspace_string
 
@@ -226,12 +186,12 @@ def createPyClass(klass, epy):
 
     ctor_count = 0
     for c in klass.ctors:
-        ctor_name = "_pywrapped_{0}_Create{1}".format(klass.name, str(ctor_count) if ctor_count > 0 else "")
+        ctor_count += 1
+        ctor_name = "_pywrapped_{0}_Create{1}".format(klass.name, str(ctor_count))
         params = c[0][:] # Make sure we take a copy of this list
         if len(klass.virtual_funcs) > 0:
             params += [("ctypes.py_object",)]
         class_string += createPyFuncLoader(ctor_name, "ctypes.c_void_p", params, epy.lib_name_fmt)
-        ctor_count += 1
 
     if klass.dtor:
         class_string += createPyFuncLoader("{0}_Destroy".format(klass.name_fmt), "", [("ctypes.c_void_p",)], epy.lib_name_fmt)
@@ -242,9 +202,6 @@ def createPyClass(klass, epy):
 
     if klass.dtor:
         class_string += Constants.PY_DEL_FUNC.format(epy.lib_name_fmt, klass.name_fmt)
-
-    # name -> countx
-    # functions_found = {f.name: 0 for f in klass.functions}
 
     for name in klass.functions:
         f_list = klass.functions[name]
@@ -257,7 +214,6 @@ def createPyClass(klass, epy):
                 full_name = klass.name_fmt + '_' + name + str(fcount)
                 class_string += createPyFunction(full_name, name, f, epy,
                                                  fcount, True, 1)
-        # functions_found[f.name] += 1
 
     return class_string
 
@@ -272,7 +228,6 @@ def generatePython(epy):
         is_class = type(section) is Section.Class
         # Namespaces and classes both use the same code for their header
         if issubclass(type(section), Section.Namespace):
-            # functions_found = {f.name: 0 for f in section.functions}
             for name in section.functions:
                 f_list = section.functions[name]
                 fcount = 0

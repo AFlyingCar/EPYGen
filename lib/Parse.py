@@ -343,7 +343,11 @@ class Epy(object):
         if param_list is None:
             state["error"] = True
         else:
-            state["sobj"].ctors.append((param_list, tparam_list, throws, state["sobj"]))
+            default_overloads = []
+            first_defaulted = next((i for i in range(len(param_list)) if param_list[i][1]), len(param_list))
+            for i in range(first_defaulted, len(param_list) + 1):
+                default_overloads.append((param_list[:i], tparam_list, throws, state["sobj"]))
+            state["sobj"].ctors += default_overloads
 
         return state
 
@@ -443,23 +447,22 @@ class Epy(object):
         # Generate Function object and append to sobj
         if not func in state["sobj"].functions:
             state["sobj"].functions[func] = []
-        state["sobj"].functions[func].append(Function(func,
-                                                      Type.parseType(rtype),
-                                                      param_list, tparam_list,
-                                                      const, static, virtual,
-                                                      abstract, throws,
-                                                      state["sobj"]))
+
+        default_overloads = []
+        first_defaulted = next((i for i in range(len(param_list)) if param_list[i][1]), len(param_list))
+        for i in range(first_defaulted, len(param_list) + 1):
+            default_overloads.append(Function(func,
+                                              Type.parseType(rtype),
+                                              param_list[:i], tparam_list,
+                                              const, static, virtual,
+                                              abstract, throws,
+                                              state["sobj"]))
+
+        state["sobj"].functions[func] += default_overloads
         if virtual:
             if not func in state["sobj"].virtual_funcs:
                 state["sobj"].virtual_funcs[func] = []
-            state["sobj"].virtual_funcs[func].append(Function(func,
-                                                              Type.parseType(rtype),
-                                                              param_list,
-                                                              tparam_list,
-                                                              const, static,
-                                                              virtual, abstract,
-                                                              throws,
-                                                              state["sobj"]))
+            state["sobj"].virtual_funcs[func] += default_overloads
         if abstract:
             state["sobj"].abstract = True
 
