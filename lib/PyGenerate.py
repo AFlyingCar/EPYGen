@@ -166,7 +166,8 @@ def createPyCtor(ctor_list, klass, epy):
 
     ident = "    " * 2
     ctor_str += "se:\n"
-    ctor_str += ident + "    self.cobj = None"
+    ctor_str += ident + "    raise ValueError(\"No such overload found matching [{0}]\".format(', '.join([t.__name__ for t in arg_tlist])))\n"
+    # ctor_str += ident + "    self.cobj = None"
 
     return ctor_str
 
