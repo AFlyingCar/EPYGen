@@ -168,7 +168,7 @@ class Type(object):
         failure = False
 
         if self.full_name == "std_string":
-            transformation = "std::string({0}PyBytes_AsString{1})".format(prefix, suffix)
+            transformation = "std::string({0}PyUnicode_AsUTF8{1})".format(prefix, suffix)
         elif self.full_name == "void": # Handle the case of a void type.
             return ""
         elif self.full_name in Constants.PRIMITIVES:
@@ -255,7 +255,7 @@ class Type(object):
 
     def buildPyType(self):
         if self.namespaces == ["std"] and self.type_name == "string":
-            self.py_type = "bytes"
+            self.py_type = "str"
         elif self.namespaces == ["std"] and self.type_name == "vector":
             self.py_type = "list"
         elif self.namespaces == ["std"] and self.type_name == "tuple":
