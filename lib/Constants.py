@@ -165,6 +165,16 @@ CPP_MAP_TO_PYOBJECT_TRANSFORMATION = """[]({3} map) -> PyObject* {{
 {0}    return dict;
 {0}}}"""
 
+CPP_DEFAULT_CTOR = """
+{0}void* _pywrapped_{1}_Create() {{
+{0}    try {{
+{0}        return new {2}();
+{0}    }} catch(...) {{
+{0}        PyErr_SetString(PyExc_RuntimeError, "An unspecified exception has occurred in {1}'s default constructor.");
+{0}        return nullptr;
+{0}    }}
+{0}}}"""
+
 """ The current date in ISO format. """
 TODAY = datetime.date.today().isoformat()
 
