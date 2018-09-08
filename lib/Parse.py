@@ -156,6 +156,16 @@ class Epy(object):
                 state["error"] = True
                 return state
             state = self.parseCtorStatement(statement, state)
+        elif statement == "no_ctor":
+            if not state["sobj"]:
+                print("Internal Error: sobj is None")
+                state["error"] = True
+                return state
+            elif type(state["sobj"]) != Section.Class:
+                print("Internal Error: sobj is not a Section.Class")
+                state["error"] = True
+                return state
+            state["sobj"].no_ctor = True
         elif statement.startswith("dtor"):
             if not state["sobj"]:
                 print("Internal Error: sobj is None")
@@ -357,7 +367,10 @@ class Epy(object):
             state["error"] = True
             return state
 
-        state["sobj"].dtor = True
+        if '=' in statement and statement.split('=')[1].strip() == "delete":
+            state["sobj"].dtor = False
+        else:
+            state["sobj"].dtor = True
 
         return state
 
