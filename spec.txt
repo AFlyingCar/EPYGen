@@ -36,7 +36,8 @@ comment
 // constructor (only applies if specified as a "class")
 ctor{<[TPARAM1], [TPARAM2], ...>} ([TYPE1] {=}, [TYPE2] {=}, ...) {throws [EXCEPTION1], [EXCEPTION2]};
 
-{virtual} dtor;
+no_ctor;
+dtor {= delete};
 
 // if one is virtual, the class is marked as virtual
 
