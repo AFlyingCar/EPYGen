@@ -254,6 +254,7 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
         var = 'param{0}'.format(pcount)
         # Generate casts to cpp types
         call += "{0}({1})".format(p[0].raw, p[0].createCTransformation(var, '', var)) + ","
+        pcount += 1
 
     if call.endswith(','):
         call = call[:-1] # Remove the trailing ,
