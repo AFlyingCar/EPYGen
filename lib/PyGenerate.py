@@ -143,7 +143,11 @@ def createPyCtor(ctor_list, klass, epy):
     # We have to make sure that we generate a default constructor so we have a
     #  self.cobj object in the generated class.
     if len(ctor_list) == 0:
-        return "    def __init__(self):\n        self.cobj = {0}()\n".format(ctor_name)
+        if not klass.no_ctor:
+            return "    def __init__(self):\n        self.cobj = _pywrapped_{0}_Create()\n".format(klass.name)
+        else:
+            # We still need to make a constructor so that `self.cobj` exists
+            return "    def __init__(self):\n        self.cobj = None"
 
     ctor_str = "    def __init__(self, *args):\n"
 
@@ -172,7 +176,7 @@ def createPyCtor(ctor_list, klass, epy):
     return ctor_str
 
 def createPyNamespace(nspace, epy):
-    nspace_string = ""
+    nspace_string = "# START NAMESPACE DEFINITION\n\n"
 
     for name in nspace.functions:
         f_list = nspace.functions[name]
@@ -180,10 +184,10 @@ def createPyNamespace(nspace, epy):
         if(len(f_list) != 0):
             nspace_string += createPyOverloads(name, f_list, nspace, epy)
 
-    return nspace_string
+    return nspace_string + "\n# END NAMESPACE DEFINITION\n\n"
 
 def createPyClass(klass, epy):
-    class_string = ""
+    class_string = "# START CLASS DEFINITION\n\n"
 
     ctor_count = 0
     for c in klass.ctors:
@@ -216,7 +220,23 @@ def createPyClass(klass, epy):
                 class_string += createPyFunction(full_name, name, f, epy,
                                                  fcount, True, 1)
 
-    return class_string
+    return class_string + "\n# END CLASS DEFINITION\n\n"
+
+def createPyEnum(section, epy, imports = []):
+    enum_str = "# START ENUM DEFINITION\n\n"
+    indent = ""
+    if section.eclass:
+        if not "enum" in imports:
+            imports.append("enum")
+            enum_str += "import enum\n\n"
+        enum_str += "class {0}(enum.Enum):\n".format(section.name)
+
+        indent = "    "
+
+    for v in section.values:
+        enum_str += indent + v[0] + "=" + (v[1] if v[1] else '0') + "\n"
+
+    return enum_str + "\n# END ENUM DEFINITION\n\n"
 
 def generatePython(epy):
     python = Constants.PYTHON_HEADER.format(Constants.VERSION, Constants.TODAY,
@@ -224,6 +244,8 @@ def generatePython(epy):
                                             epy.libIndirection())
 
     imported_abc = False
+
+    imports = []
 
     for section in epy.sections:
         is_class = type(section) is Section.Class
@@ -249,6 +271,8 @@ def generatePython(epy):
             python += createPyClass(section, epy)
         elif type(section) is Section.Namespace:
             python += createPyNamespace(section, epy)
+        elif type(section) is Section.Enum:
+            python += createPyEnum(section, epy, imports)
         elif type(section) is Parse.PyLiteral:
             python += section.literal
 

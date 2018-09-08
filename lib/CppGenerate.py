@@ -414,8 +414,8 @@ def createCPPClass(klass, epy, reffed_throws):
     class_string += "extern \"C\" {\n"
 
     # We have to make sure we generate a simple constructor just for allocation
-    if len(klass.ctors) == 0:
-        class_string += CPP_DEFAULT_CTOR.format("    ", class_name, wrapped_name)
+    if len(klass.ctors) == 0 and not klass.no_ctor:
+        class_string += Constants.CPP_DEFAULT_CTOR.format("    ", class_name, wrapped_name)
     else:
         ccount = 0
         for ctor in klass.ctors:
