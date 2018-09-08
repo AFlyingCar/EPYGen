@@ -32,7 +32,9 @@ class Class(Namespace):
         self.abstract = False
 
         # Nothing special needs to be done with the destructor, we just need to know that we have one
-        self.dtor = False
+        self.dtor = True
+
+        self.no_ctor = False
 
     def __str__(self):
         s = super().__str__()
