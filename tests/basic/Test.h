@@ -25,4 +25,6 @@ class API Hello {
         std::string m_message;
 };
 
+struct API Simple { };
+
 #endif

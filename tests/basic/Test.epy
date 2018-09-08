@@ -61,3 +61,10 @@ GREEN=6;
 
 end;
 
+start;
+class Simple;
+
+no_ctor;
+dtor = delete;
+
+end;
