@@ -16,10 +16,10 @@ def CPPTypeToCType(cpptype): # TODO
 #
 # @return A string containing C++ code for a null pointer check.
 #
-def createCPPNullCheck(ident, var, fname):
+def createCPPNullCheck(ident, var, fname, null_return_value="0"):
     return ("    " * ident + "if({0} == nullptr) {{\n" +\
             "    " * ident + "    PyErr_SetString(PyExc_ValueError, \"Null pointer given for parameter {0} in function {1}\");\n" +\
-            "    " * ident + "    return nullptr;\n" +\
+            "    " * ident + "    return {0};\n".format(null_return_value) +\
             "    " * ident + "}}\n").format(var, fname)
 
 ##
@@ -228,7 +228,7 @@ def createCPPFunction(full_name, name, function, epy, referenced_throws = [], is
     has_ret_val = (cres_type.raw != "void")
     # Generate contents
     if is_class and not function.static:
-        func_string += createCPPNullCheck(2, "self", name)
+        func_string += createCPPNullCheck(2, "self", name, cres_type.createNull())
 
     func_string += "    " * (ident + 1) + "try {\n"
     func_string += "    " * (ident + 2)

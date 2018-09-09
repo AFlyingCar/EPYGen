@@ -127,7 +127,10 @@ class Type(object):
         elif self.becomes_pyobj or forceBP:
             return self.createToPyObjectTransformation(prefix, suffix)
 
-        return var
+        if self.is_reference:
+            return '&({0})'.format(var)
+        else:
+            return var
 
     def createCPPTransformation(self, prefix = "", suffix = ""):
         if self.becomes_pyobj:
@@ -141,6 +144,8 @@ class Type(object):
             return '""'
         elif self.is_function:
             return "[]({0}) -> {1} {{ return {2}; }}".format(','.join([p.c_type for p in self.fparams]), self.c_type, "0")
+        elif self.is_ptr:
+            return "nullptr"
         else:
             return "0"
 
